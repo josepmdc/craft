@@ -2,6 +2,7 @@ use std::fmt;
 
 use crate::error;
 
+#[derive(Debug, Clone)]
 pub struct Location {
     col: i32,
     line: i32,
@@ -13,7 +14,7 @@ impl Location {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum TokenType {
     EOF,
     Fn,
@@ -30,17 +31,28 @@ pub enum TokenType {
     Star,
     Slash,
     Identifier,
+    Bang,
+    BangEqual,
+    Equal,
+    EqualEqual,
+    Greater,
+    GreaterEqual,
+    Less,
+    LessEqual,
+    True,
+    False,
 }
 
+#[derive(Debug, Clone)]
 pub struct Token {
-    kind: TokenType,
-    value: String,
-    loc: Location,
+    pub type_: TokenType,
+    pub value: String,
+    pub loc: Location,
 }
 
 impl fmt::Display for Token {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self.kind {
+        match &self.type_ {
             TokenType::String { literal } => write!(
                 f,
                 "{}:{} => {:?} {:?}",
@@ -54,7 +66,7 @@ impl fmt::Display for Token {
             _ => write!(
                 f,
                 "{}:{} => {:?} {:?}",
-                self.loc.line, self.loc.col, self.kind, self.value
+                self.loc.line, self.loc.col, self.type_, self.value
             ),
         }
     }
@@ -63,7 +75,7 @@ impl fmt::Display for Token {
 impl Token {
     pub fn new(kind: TokenType, value: &str, loc: Location) -> Self {
         Self {
-            kind,
+            type_: kind,
             value: value.to_string(),
             loc,
         }
@@ -105,7 +117,7 @@ impl Scanner {
     }
 
     fn scan_token(&mut self) {
-        match self.next_char() {
+        match self.process_next_char() {
             ';' => self.add_token(TokenType::Semicolon),
             '(' => self.add_token(TokenType::LeftParen),
             ')' => self.add_token(TokenType::RightParen),
@@ -156,13 +168,13 @@ impl Scanner {
 
     fn add_number(&mut self) {
         while self.peek().is_digit(10) {
-            self.next_char();
+            self.process_next_char();
         }
 
         if self.peek() == '.' && self.peek_next().is_digit(10) {
-            self.next_char();
+            self.process_next_char();
             while self.peek().is_digit(10) {
-                self.next_char();
+                self.process_next_char();
             }
         }
 
@@ -181,7 +193,7 @@ impl Scanner {
             if self.peek() == '\n' {
                 self.add_new_line();
             }
-            self.next_char();
+            self.process_next_char();
         }
 
         if self.is_at_end() {
@@ -189,7 +201,7 @@ impl Scanner {
             return;
         }
 
-        self.next_char();
+        self.process_next_char();
 
         let literal = self
             .source
@@ -202,7 +214,7 @@ impl Scanner {
 
     fn add_identifier(&mut self) {
         while self.peek().is_alphanumeric() {
-            self.next_char();
+            self.process_next_char();
         }
         let identifier = self
             .source
@@ -217,7 +229,7 @@ impl Scanner {
         self.col = 0;
     }
 
-    fn next_char(&mut self) -> char {
+    fn process_next_char(&mut self) -> char {
         self.col += 1;
         self.current += 1;
         self.source

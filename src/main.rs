@@ -1,5 +1,6 @@
 pub mod error;
 pub mod lex;
+pub mod parser;
 
 use std::{env, fs, io};
 
@@ -12,7 +13,7 @@ fn main() {
     } else if args.len() == 2 {
         run_file(&args[1]);
     } else {
-        run_prompt();
+        run_repl();
     }
 }
 
@@ -21,10 +22,12 @@ fn run_file(path: &String) {
     run(source);
 }
 
-fn run_prompt() {
+fn run_repl() {
     loop {
         let mut buffer = String::new();
-        io::stdin().read_line(&mut buffer).expect("Could not read line");
+        io::stdin()
+            .read_line(&mut buffer)
+            .expect("Could not read line");
         run(buffer);
     }
 }
