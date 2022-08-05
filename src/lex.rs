@@ -4,8 +4,8 @@ use crate::error;
 
 #[derive(Debug, Clone)]
 pub struct Location {
-    col: i32,
-    line: i32,
+    pub col: i32,
+    pub line: i32,
 }
 
 impl Location {
