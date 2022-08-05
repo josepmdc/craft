@@ -1,3 +1,6 @@
+// TODO re-enable warnings
+// #![allow(dead_code)]
+
 use crate::lex::{Token, TokenType};
 
 #[derive(Debug, Clone)]
@@ -21,6 +24,9 @@ enum Expr {
     Literal {
         value: LiteralValue,
     },
+    Grouping {
+        expression: Box<Expr>,
+    },
 }
 
 struct Parser {
@@ -28,8 +34,6 @@ struct Parser {
     current: usize,
 }
 
-// TODO re-enable warnings
-#[allow(dead_code)]
 impl Parser {
     /*
         expression     → equality ;
@@ -47,7 +51,7 @@ impl Parser {
         Self { tokens, current: 0 }
     }
 
-    fn expresion(&mut self) -> Expr {
+    fn expression(&mut self) -> Expr {
         self.equality()
     }
 
@@ -139,7 +143,16 @@ impl Parser {
             TokenType::Number { literal } => Expr::Literal {
                 value: LiteralValue::Number(literal.clone()),
             },
-            TokenType::LeftParen => todo!("Check for closing paren, else error"),
+            TokenType::LeftParen => {
+                let expr = self.expression();
+                self.consume(
+                    TokenType::RightParen,
+                    "Expected ')' after expression".to_string(),
+                );
+                Expr::Grouping {
+                    expression: Box::new(expr),
+                }
+            }
             _ => todo!("Return error"),
         };
         self.process_next_token();
@@ -147,9 +160,11 @@ impl Parser {
     }
 
     fn match_any(&self, types: &[TokenType]) -> bool {
-        types
-            .iter()
-            .any(|t| !self.is_at_end() && *t == self.peek().type_)
+        types.iter().any(|t| self.check_type(t))
+    }
+
+    fn check_type(&self, type_: &TokenType) -> bool {
+        !self.is_at_end() && *type_ == self.peek().type_
     }
 
     fn process_next_token(&mut self) -> &Token {
@@ -171,5 +186,12 @@ impl Parser {
 
     fn is_at_end(&self) -> bool {
         self.peek().type_ == TokenType::EOF
+    }
+
+    fn consume(&mut self, type_: TokenType, error_message: String) -> &Token {
+        if self.check_type(&type_) {
+            return self.process_next_token();
+        }
+        todo!()
     }
 }
