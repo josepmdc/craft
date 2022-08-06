@@ -1,6 +1,3 @@
-// TODO re-enable warnings
-#![allow(dead_code)]
-
 use crate::{
     error,
     lex::{Token, TokenType},
@@ -18,7 +15,8 @@ pub enum LiteralValue {
     String(String),
 }
 
-enum Expr {
+#[derive(Debug)]
+pub enum Expr {
     Binary {
         left: Box<Expr>,
         operator: Token,
@@ -36,7 +34,7 @@ enum Expr {
     },
 }
 
-struct Parser {
+pub struct Parser {
     tokens: Vec<Token>,
     current: usize,
 }
@@ -54,8 +52,12 @@ impl Parser {
                        | "(" expression ")" ;
     */
 
-    fn new(tokens: Vec<Token>) -> Self {
+    pub fn new(tokens: Vec<Token>) -> Self {
         Self { tokens, current: 0 }
+    }
+
+    pub fn parse(&mut self) -> ParseResult<Expr> {
+        self.expression()
     }
 
     fn expression(&mut self) -> ParseResult<Expr> {
@@ -203,5 +205,20 @@ impl Parser {
     fn report_error(&self, token: &Token, error: ParseError) -> ParseError {
         error::report(token.loc.line, token.loc.col, error.to_string());
         error
+    }
+
+    fn sync(&mut self) {
+        self.process_next_token();
+
+        while !self.is_at_end() {
+            if self.get_previous_token().type_ == TokenType::Semicolon {
+                return;
+            }
+
+            match self.peek().type_ {
+                TokenType::Fn => return,
+                _ => self.process_next_token(),
+            };
+        }
     }
 }

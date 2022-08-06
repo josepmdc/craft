@@ -5,6 +5,7 @@ pub mod parser;
 use std::{env, fs, io};
 
 use lex::Scanner;
+use parser::parser::Parser;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -35,8 +36,7 @@ fn run_repl() {
 fn run(source: String) {
     let mut scanner = Scanner::new(source);
     let tokens = scanner.scan_tokens();
-
-    for token in tokens {
-        println!("{}", token);
-    }
+    let mut parser = Parser::new(tokens.to_vec());
+    let expr = parser.parse();
+    println!("{:#?}", expr);
 }
