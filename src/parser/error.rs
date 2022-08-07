@@ -6,4 +6,6 @@ pub enum ParseError {
     MissingRightParen(),
     #[error("Unexpected token {0}")]
     UnexpectedToken(String),
+    #[error("Unexpected end of source")]
+    UnexpectedEndOfSource(),
 }
