@@ -35,14 +35,21 @@ fn run_file(path: &String) {
 
 fn run_repl() {
     loop {
-        let mut buffer = String::new();
+        let mut input = String::new();
 
         print_prompt();
 
         io::stdin()
-            .read_line(&mut buffer)
+            .read_line(&mut input)
             .expect("Could not read line");
-        if let Err(err) = run(buffer) {
+
+        if input.starts_with("exit") || input.starts_with("quit") {
+            break;
+        } else if input.chars().all(char::is_whitespace) {
+            continue;
+        }
+        
+        if let Err(err) = run(input) {
             println!("{}", err);
         }
     }

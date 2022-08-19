@@ -2,10 +2,10 @@
 import math
 
 // We can define global constants but not variables
-let MAX_SPEED = 120;
+const MAX_SPEED = 120;
 
 fn main() {
-    // All variables are immutable by default (i.e. constants)
+    // All variables are immutable by default
     let a = 10;
     // If you want it to be mutable you can add the "mut" keyword after "let"
     let mut b = 0;
