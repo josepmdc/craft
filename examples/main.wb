@@ -1,0 +1,180 @@
+// We can use libraries with the import statement
+import math
+
+// We can define global constants but not variables
+let MAX_SPEED = 120;
+
+fn main() {
+    // All variables are immutable by default (i.e. constants)
+    let a = 10;
+    // If you want it to be mutable you can add the "mut" keyword after "let"
+    let mut b = 0;
+    // Functions can be declared anywhere on the file, even after being referenced
+    let r = radius(circumference=a); // named params (optional)
+
+    // Types can be inferred by the compiler, but can also be specified
+    let a: string = "asdf"; // You can shadow already declared variables
+
+    // Two kinds of print statements
+    print("Radius: ", radius);
+    printf("Radius: {radius}");
+
+    // We can also do this
+    let str = sprintf("Radius: {radius}");
+    print(str)
+
+    // All expressions return a value, so for example we can do something like
+    let a = if true { 1 } else { 0 };
+
+    // List comprehension
+    let numbers = [
+        number for number in (1..100) // Generates numbers from 1 to 100 inclusive
+    ];
+
+    // We can slice a part of a vector
+    let one_to_fifty = numbers[0:50] // indexes start at 0
+
+    loops(numbers);
+    functional_style(numbers);
+    references(&numbers, &mut numbers.clone());
+}
+
+fn radius(circumference: i32) i32 {
+    // implicit return, if there's no semicolon in the last line, it will implicitly return that value
+    circumference / (2 * math.PI)
+}
+
+// Interfaces define functions that must be implemented by a type
+interface Person {
+    fn get_name() string;
+}
+
+// No classes, just structs
+struct User {
+    // Fields private by default
+    age: i32,
+    // They can be made public
+    pub name: string,
+
+    // constructor
+    pub fn new(age: i32, name: string) self {
+        self {
+            age,
+            name,
+        }
+    }
+}
+
+
+// We can declare member functions outside struct declarations
+// Inheritance is implicit, so by declaring this function, User will implement the Person interface
+pub fn User::get_name() string {
+    self.name // self to access struct fields
+}
+
+pub mut fn set_name(name: string) string {
+    self.name = name;
+}
+
+fn modify_struct() {
+    let user = User::new();
+    mut user.set_name("new name");
+}
+
+fn loops(numbers: [i32]) {
+    let mut b = 0;
+    // If statements and for loops don't need parenthesis
+    for number in numbers {
+        if number % 2 == 0 {
+            b += number;
+        }
+    }
+
+    let mut x = 0;
+    // infinite loop
+    loop {
+        if x > 5 {
+            break;
+        }
+        x += 1; // no ++x or x++ syntax, to avoid confusion
+    }
+
+    // Classic for loops can be used for more control
+    for let number = 0; number < numbers.len(); number += 1 {
+        b += number;
+    }
+
+    // Break outer loop from inner loop
+    outer: for number in numbers {
+        for number in numbers {
+            if number % 2 == 0 {
+                break outer;
+            }
+        }
+    }
+}
+
+fn functional_style(numbers: [i32]) {
+    // Functional style with closures
+    let numbers_plus_one = numbers.map(|x| -> x + 1);
+
+    let sum = numbers.reduce(|sum, number| -> {
+        if number % 2 == 0 {
+            sum + number
+        }
+    });
+
+    let any_greater_than_five = number.any(|x| -> x > 5);
+}
+
+fn hash_tables() HashTable(string, User) {
+    let hash_table: HashTable(string, User) = {
+        "user1": {
+            age: 27,
+            name: "some_name"
+        },
+        "user2": {
+            "age": 33,
+            "name": "some_name2"
+        },
+    };
+
+    // It can also be declared without type annotations
+    let hash_table = {
+        "user1": User {
+            age: 27,
+            name: "some_name"
+        },
+        "user2": User {
+            "age": 33,
+            "name": "some_name2"
+        },
+    };
+
+    // They can be serialized into a JSON string
+    let json = hash_table.serialize();
+
+    hash_table
+}
+
+// The function will return either a User or an error
+fn error_handling() Result<User, KeyError> {
+    let table = hash_tables();
+    // When we access a table, the key may not exist so we need to handle the possible error
+    match table.get("user1") {
+        Ok(user) => Ok(user),
+        Err(e) => Err(e),
+    }
+    // We don't put a semicolon, so the outcome of match will be returned, either a user or an error
+}
+
+// References are immutable by default but we can make them mutable
+fn references(numbers: &[i32], other_numbers: &mut [i32]) {
+    for number in numbers {
+        print(number);
+    }
+
+    for number in other_numbers {
+        *number += 1; // This will modify the original vector
+    }
+}
