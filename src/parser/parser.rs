@@ -7,7 +7,7 @@ use super::error::ParseError;
 
 type ParseResult<T> = Result<T, ParseError>;
 
-const ANONYMOUS_FUNCTION_NAME: &str = "anonymous";
+pub const ANONYMOUS_FUNCTION_NAME: &str = "anonymous";
 
 #[derive(Debug, Clone)]
 pub enum LiteralValue {
