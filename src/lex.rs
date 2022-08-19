@@ -46,7 +46,7 @@ pub enum TokenType {
 #[derive(Debug, Clone)]
 pub struct Token {
     pub type_: TokenType,
-    pub value: String,
+    pub lexeme: String,
     pub loc: Location,
 }
 
@@ -56,17 +56,17 @@ impl fmt::Display for Token {
             TokenType::String { literal } => write!(
                 f,
                 "{}:{} => {:?} {:?}",
-                self.loc.line, self.loc.col, self.value, literal
+                self.loc.line, self.loc.col, self.lexeme, literal
             ),
             TokenType::Number { literal } => write!(
                 f,
                 "{}:{} => {:?} {:?}",
-                self.loc.line, self.loc.col, self.value, literal
+                self.loc.line, self.loc.col, self.lexeme, literal
             ),
             _ => write!(
                 f,
                 "{}:{} => {:?} {:?}",
-                self.loc.line, self.loc.col, self.type_, self.value
+                self.loc.line, self.loc.col, self.type_, self.lexeme
             ),
         }
     }
@@ -76,7 +76,7 @@ impl Token {
     pub fn new(kind: TokenType, value: &str, loc: Location) -> Self {
         Self {
             type_: kind,
-            value: value.to_string(),
+            lexeme: value.to_string(),
             loc,
         }
     }

@@ -7,7 +7,7 @@ pub fn report(line: i32, col: i32, message: String) {
 }
 
 #[derive(Error, Debug)]
-enum CompileError {
+pub enum CompileError {
     #[error("Parsing Error: {0}")]
     ParseError(#[from] ParseError)
 }

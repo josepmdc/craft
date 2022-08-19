@@ -7,31 +7,49 @@ use super::error::ParseError;
 
 type ParseResult<T> = Result<T, ParseError>;
 
+const ANONYMOUS_FUNCTION_NAME: &str = "anonymous";
+
 #[derive(Debug, Clone)]
 pub enum LiteralValue {
     Boolean(bool),
-    Null,
     Number(f64),
     String(String),
 }
 
 #[derive(Debug)]
+pub struct BinaryExpr {
+    pub left: Box<Expr>,
+    pub operator: Token,
+    pub right: Box<Expr>,
+}
+
+#[derive(Debug)]
+pub struct UnaryExpr {
+    pub operator: Token,
+    pub right: Box<Expr>,
+}
+
+#[derive(Debug)]
 pub enum Expr {
-    Binary {
-        left: Box<Expr>,
-        operator: Token,
-        right: Box<Expr>,
-    },
-    Unary {
-        operator: Token,
-        right: Box<Expr>,
-    },
-    Literal {
-        value: LiteralValue,
-    },
-    Grouping {
-        expression: Box<Expr>,
-    },
+    Binary(BinaryExpr),
+    Unary(UnaryExpr),
+    Literal { value: LiteralValue },
+    Grouping { expression: Box<Expr> },
+}
+
+#[derive(Debug)]
+pub struct Prototype {
+    pub name: String,
+    pub args: Vec<String>,
+    pub is_op: bool,
+    pub prec: usize,
+}
+
+#[derive(Debug)]
+pub struct Function {
+    pub prototype: Prototype,
+    pub body: Option<Expr>,
+    pub is_anon: bool,
 }
 
 pub struct Parser {
@@ -59,8 +77,25 @@ impl Parser {
         }
     }
 
-    pub fn parse(&mut self) -> ParseResult<Expr> {
-        self.expression()
+    pub fn parse(&mut self) -> ParseResult<Function> {
+        self.toplevel_expr()
+    }
+
+    fn toplevel_expr(&mut self) -> ParseResult<Function> {
+        match self.expression() {
+            Ok(expr) => Ok(Function {
+                prototype: Prototype {
+                    name: ANONYMOUS_FUNCTION_NAME.to_string(),
+                    args: vec![],
+                    is_op: false,
+                    prec: 0,
+                },
+                body: Some(expr),
+                is_anon: true,
+            }),
+
+            Err(err) => Err(err),
+        }
     }
 
     fn expression(&mut self) -> ParseResult<Expr> {
@@ -73,11 +108,11 @@ impl Parser {
             let operator = self.current().clone();
             self.advance()?;
             let right = self.comparison()?;
-            expr = Expr::Binary {
+            expr = Expr::Binary(BinaryExpr {
                 left: Box::new(expr),
                 operator,
                 right: Box::new(right),
-            };
+            });
         }
         Ok(expr)
     }
@@ -94,11 +129,11 @@ impl Parser {
             let operator = self.current().clone();
             self.advance()?;
             let right = self.term()?;
-            expr = Expr::Binary {
+            expr = Expr::Binary(BinaryExpr {
                 left: Box::new(expr),
                 operator,
                 right: Box::new(right),
-            };
+            });
         }
         Ok(expr)
     }
@@ -109,11 +144,11 @@ impl Parser {
             let operator = self.current().clone();
             self.advance()?;
             let right = self.term()?;
-            expr = Expr::Binary {
+            expr = Expr::Binary(BinaryExpr {
                 left: Box::new(expr),
                 operator,
                 right: Box::new(right),
-            };
+            });
         }
         Ok(expr)
     }
@@ -124,11 +159,11 @@ impl Parser {
             let operator = self.current().clone();
             self.advance()?;
             let right = self.unary()?;
-            expr = Expr::Binary {
+            expr = Expr::Binary(BinaryExpr {
                 left: Box::new(expr),
                 operator,
                 right: Box::new(right),
-            };
+            });
         }
         Ok(expr)
     }
@@ -138,10 +173,10 @@ impl Parser {
             let operator = self.current().clone();
             self.advance()?;
             let right = self.primary()?;
-            return Ok(Expr::Unary {
+            return Ok(Expr::Unary(UnaryExpr {
                 operator,
                 right: Box::new(right),
-            });
+            }));
         }
         self.primary()
     }
@@ -171,7 +206,7 @@ impl Parser {
             _ => {
                 let token = self.current();
                 return Err(
-                    self.report_error(token, ParseError::UnexpectedToken(token.value.clone()))
+                    self.report_error(token, ParseError::UnexpectedToken(token.lexeme.clone()))
                 );
             }
         };
@@ -219,6 +254,7 @@ impl Parser {
         error
     }
 
+    // TODO Use sync when there's an error
     fn sync(&mut self) -> ParseResult<()> {
         self.advance()?;
 

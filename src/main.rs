@@ -1,11 +1,16 @@
-pub mod error;
-pub mod lex;
-pub mod parser;
+mod codegen;
+mod error;
+mod lex;
+mod parser;
 
 use std::{env, fs, io};
 
+use error::CompileError;
 use lex::Scanner;
+use llvm::context::Context;
 use parser::parser::Parser;
+
+use crate::codegen::Compiler;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -20,7 +25,7 @@ fn main() {
 
 fn run_file(path: &String) {
     let source = fs::read_to_string(path).expect("Could not read file");
-    run(source);
+    run(source).unwrap();
 }
 
 fn run_repl() {
@@ -29,14 +34,32 @@ fn run_repl() {
         io::stdin()
             .read_line(&mut buffer)
             .expect("Could not read line");
-        run(buffer);
+        run(buffer).unwrap();
     }
 }
 
-fn run(source: String) {
+fn run(source: String) -> Result<(), CompileError> {
     let mut scanner = Scanner::new(source);
     let tokens = scanner.scan_tokens();
     let mut parser = Parser::new(tokens.to_vec());
-    let expr = parser.parse();
-    println!("{:#?}", expr);
+
+    let context = Context::create();
+    let module = context.create_module("repl");
+    let builder = context.create_builder();
+
+    match parser.parse() {
+        Ok(func) => {
+            match Compiler::compile(&context, &builder, &module, &func) {
+                Ok(function) => {
+                    println!("-> Expression compiled to IR:");
+                    function.print_to_stderr();
+                }
+                Err(err) => {
+                    println!("!> Error compiling function: {}", err);
+                }
+            }
+        }
+        Err(e) => return Err(e.into()),
+    }
+    return Ok(());
 }
