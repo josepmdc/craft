@@ -18,7 +18,7 @@ use crate::codegen::Compiler;
 fn main() {
     let args: Vec<String> = env::args().collect();
     if args.len() > 2 {
-        println!("Usage: wombat [script]");
+        println!("Usage: craft [script]");
     } else if args.len() == 2 {
         run_file(&args[1]);
     } else {
