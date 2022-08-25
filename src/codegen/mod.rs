@@ -62,8 +62,12 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                 .insert(proto.args[i].clone(), arg.into_pointer_value());
         }
 
-        let body = self.compile_expr(self.function.body.as_ref().unwrap())?;
+        if let None = self.function.body {
+            self.builder.build_return(None);
+            return Ok(function);
+        }
 
+        let body = self.compile_expr(self.function.body.as_ref().unwrap())?;
         self.builder.build_return(Some(&body));
 
         if function.verify(true) {

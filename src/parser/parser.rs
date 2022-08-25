@@ -41,8 +41,6 @@ pub enum Expr {
 pub struct Prototype {
     pub name: String,
     pub args: Vec<String>,
-    pub is_op: bool,
-    pub prec: usize,
 }
 
 #[derive(Debug)]
@@ -78,17 +76,95 @@ impl Parser {
     }
 
     pub fn parse(&mut self) -> ParseResult<Function> {
-        self.toplevel_expr()
+        match self.current().type_ {
+            TokenType::Fn => self.parse_fn(),
+            _ => self.parse_toplevel_expr(),
+        }
     }
 
-    fn toplevel_expr(&mut self) -> ParseResult<Function> {
-        match self.expression() {
+    fn parse_fn(&mut self) -> ParseResult<Function> {
+        self.advance()?;
+
+        let prototype = self.parse_prototype()?;
+
+        match self.current().type_ {
+            TokenType::LeftBrace => self.advance()?,
+            _ => return Err(ParseError::MissingLeftBrace()),
+        };
+
+        if self.current().type_ == TokenType::RightBrace {
+            return Ok(Function {
+                prototype,
+                body: None,
+                is_anon: false,
+            });
+        }
+
+        let body = self.parse_expr()?;
+        Ok(Function {
+            prototype,
+            body: Some(body),
+            is_anon: false,
+        })
+    }
+
+    fn parse_prototype(&mut self) -> ParseResult<Prototype> {
+        let name = match self.current().type_ {
+            TokenType::Identifier => self.current().lexeme.clone(),
+            _ => return Err(ParseError::PrototypeMissingIdentifier()),
+        };
+
+        self.advance()?;
+
+        match self.current().type_ {
+            TokenType::LeftParen => self.advance()?,
+            _ => return Err(ParseError::MissingLeftParen()),
+        }
+
+        if self.current().type_ == TokenType::RightParen {
+            self.advance()?;
+            return Ok(Prototype { name, args: vec![] });
+        }
+
+        let args = self.parse_prototype_args()?;
+
+        Ok(Prototype { name, args })
+    }
+
+    fn parse_prototype_args(&mut self) -> ParseResult<Vec<String>> {
+        let mut args = vec![];
+
+        loop {
+            if self.current().type_ != TokenType::Identifier {
+                return Err(ParseError::PrototypeMissingRightParenOrComma());
+            }
+
+            args.push(self.current().lexeme.clone());
+            self.advance()?;
+
+            match self.current().type_ {
+                TokenType::RightParen => {
+                    self.advance()?;
+                    break;
+                }
+                TokenType::Comma => {
+                    self.advance()?;
+                }
+                _ => {
+                    return Err(ParseError::PrototypeMissingRightParenOrComma());
+                }
+            };
+        }
+
+        Ok(args)
+    }
+
+    fn parse_toplevel_expr(&mut self) -> ParseResult<Function> {
+        match self.parse_expr() {
             Ok(expr) => Ok(Function {
                 prototype: Prototype {
                     name: ANONYMOUS_FUNCTION_NAME.to_string(),
                     args: vec![],
-                    is_op: false,
-                    prec: 0,
                 },
                 body: Some(expr),
                 is_anon: true,
@@ -98,16 +174,20 @@ impl Parser {
         }
     }
 
-    fn expression(&mut self) -> ParseResult<Expr> {
-        self.equality()
+    fn parse_expr(&mut self) -> ParseResult<Expr> {
+        let expr = self.parse_equality();
+        match self.current().type_ {
+            TokenType::Semicolon => expr,
+            _ => Err(ParseError::MissingSemicolon()),
+        }
     }
 
-    fn equality(&mut self) -> ParseResult<Expr> {
-        let mut expr = self.comparison()?;
+    fn parse_equality(&mut self) -> ParseResult<Expr> {
+        let mut expr = self.parse_comparison()?;
         while self.match_any([TokenType::BangEqual, TokenType::EqualEqual]) {
             let operator = self.current().clone();
             self.advance()?;
-            let right = self.comparison()?;
+            let right = self.parse_comparison()?;
             expr = Expr::Binary(BinaryExpr {
                 left: Box::new(expr),
                 operator,
@@ -117,8 +197,8 @@ impl Parser {
         Ok(expr)
     }
 
-    fn comparison(&mut self) -> ParseResult<Expr> {
-        let mut expr = self.term()?;
+    fn parse_comparison(&mut self) -> ParseResult<Expr> {
+        let mut expr = self.parse_term()?;
 
         while self.match_any([
             TokenType::Greater,
@@ -128,7 +208,7 @@ impl Parser {
         ]) {
             let operator = self.current().clone();
             self.advance()?;
-            let right = self.term()?;
+            let right = self.parse_term()?;
             expr = Expr::Binary(BinaryExpr {
                 left: Box::new(expr),
                 operator,
@@ -138,12 +218,12 @@ impl Parser {
         Ok(expr)
     }
 
-    fn term(&mut self) -> ParseResult<Expr> {
-        let mut expr = self.factor()?;
+    fn parse_term(&mut self) -> ParseResult<Expr> {
+        let mut expr = self.parse_factor()?;
         while self.match_any([TokenType::Minus, TokenType::Plus]) {
             let operator = self.current().clone();
             self.advance()?;
-            let right = self.term()?;
+            let right = self.parse_term()?;
             expr = Expr::Binary(BinaryExpr {
                 left: Box::new(expr),
                 operator,
@@ -153,12 +233,12 @@ impl Parser {
         Ok(expr)
     }
 
-    fn factor(&mut self) -> ParseResult<Expr> {
-        let mut expr = self.unary()?;
+    fn parse_factor(&mut self) -> ParseResult<Expr> {
+        let mut expr = self.parse_unary()?;
         while self.match_any([TokenType::Slash, TokenType::Star]) {
             let operator = self.current().clone();
             self.advance()?;
-            let right = self.unary()?;
+            let right = self.parse_unary()?;
             expr = Expr::Binary(BinaryExpr {
                 left: Box::new(expr),
                 operator,
@@ -168,20 +248,20 @@ impl Parser {
         Ok(expr)
     }
 
-    fn unary(&mut self) -> ParseResult<Expr> {
+    fn parse_unary(&mut self) -> ParseResult<Expr> {
         if self.match_any([TokenType::Bang, TokenType::Minus]) {
             let operator = self.current().clone();
             self.advance()?;
-            let right = self.primary()?;
+            let right = self.parse_primary()?;
             return Ok(Expr::Unary(UnaryExpr {
                 operator,
                 right: Box::new(right),
             }));
         }
-        self.primary()
+        self.parse_primary()
     }
 
-    fn primary(&mut self) -> ParseResult<Expr> {
+    fn parse_primary(&mut self) -> ParseResult<Expr> {
         let expr = match &self.current().type_ {
             TokenType::False => Expr::Literal {
                 value: LiteralValue::Boolean(false),
@@ -197,7 +277,7 @@ impl Parser {
             },
             TokenType::LeftParen => {
                 self.advance()?;
-                let expr = self.expression()?;
+                let expr = self.parse_expr()?;
                 self.assert_current_type(TokenType::RightParen, ParseError::MissingRightParen())?;
                 Expr::Grouping {
                     expression: Box::new(expr),
