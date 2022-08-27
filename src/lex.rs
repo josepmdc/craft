@@ -30,7 +30,7 @@ pub enum TokenType {
     Minus,
     Star,
     Slash,
-    Identifier,
+    Identifier(String),
     Bang,
     BangEqual,
     Equal,
@@ -212,12 +212,13 @@ impl Scanner {
         while self.current().is_alphanumeric() {
             self.advance();
         }
-        let identifier = self
+
+        let id = self
             .source
             .get(self.start..self.current_idx)
             .expect("Could not get identifier");
 
-        self.add_token(Scanner::match_keyword(identifier).unwrap_or(TokenType::Identifier));
+        self.add_token(Scanner::match_keyword(id).unwrap_or(TokenType::Identifier(id.to_string())));
     }
 
     fn add_new_line(&mut self) {

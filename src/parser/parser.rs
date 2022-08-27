@@ -35,6 +35,7 @@ pub enum Expr {
     Unary(UnaryExpr),
     Literal { value: LiteralValue },
     Grouping { expression: Box<Expr> },
+    Variable(String),
 }
 
 #[derive(Debug)]
@@ -122,8 +123,8 @@ impl Parser {
     }
 
     fn parse_prototype(&mut self) -> ParseResult<Prototype> {
-        let name = match self.current().type_ {
-            TokenType::Identifier => self.current().lexeme.clone(),
+        let name = match &self.current().type_ {
+            TokenType::Identifier(identifier) => identifier.clone(),
             _ => return Err(ParseError::PrototypeMissingIdentifier()),
         };
 
@@ -148,12 +149,13 @@ impl Parser {
         let mut args = vec![];
 
         loop {
-            if self.current().type_ != TokenType::Identifier {
-                return Err(ParseError::PrototypeMissingRightParenOrComma());
+            match &self.current().type_ {
+                TokenType::Identifier(id) => {
+                    args.push(id.clone());
+                    self.advance()?;
+                }
+                _ => return Err(ParseError::PrototypeMissingRightParenOrComma()),
             }
-
-            args.push(self.current().lexeme.clone());
-            self.advance()?;
 
             match self.current().type_ {
                 TokenType::RightParen => {
@@ -299,6 +301,7 @@ impl Parser {
                     expression: Box::new(expr),
                 }
             }
+            TokenType::Identifier(id) => Expr::Variable(id.to_string()),
             _ => {
                 let token = self.current();
                 return Err(

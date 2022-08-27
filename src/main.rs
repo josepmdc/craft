@@ -75,7 +75,7 @@ fn compile(func: Function) -> Result<(), CompilerError> {
             function.print_to_stderr();
             println!("--------------------------------");
         }
-        Err(err) => return Err(CompilerError::CompileError(err.to_string())),
+        Err(err) => return Err(CompilerError::CodegenError(err)),
     }
 
     run_jit(&module);

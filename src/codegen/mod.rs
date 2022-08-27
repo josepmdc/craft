@@ -1,5 +1,7 @@
 #![allow(dead_code, unused_variables)]
 
+pub mod error;
+
 use std::collections::HashMap;
 
 use llvm::{
@@ -16,7 +18,9 @@ use crate::{
     parser::parser::{BinaryExpr, Expr, Function, LiteralValue, Prototype, UnaryExpr},
 };
 
-type CompilerResult<'ctx> = Result<FloatValue<'ctx>, &'static str>;
+use self::error::CodegenError;
+
+type CodegenResult<T> = Result<T, CodegenError>;
 
 pub struct Compiler<'a, 'ctx> {
     pub context: &'ctx Context,
@@ -34,7 +38,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         builder: &'a Builder<'ctx>,
         module: &'a Module<'ctx>,
         function: &'a Function,
-    ) -> Result<FunctionValue<'ctx>, &'static str> {
+    ) -> CodegenResult<FunctionValue<'ctx>> {
         let mut compiler = Self {
             context: &context,
             builder: &builder,
@@ -46,7 +50,21 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         compiler.compile_fn()
     }
 
-    fn compile_fn(&mut self) -> Result<FunctionValue<'ctx>, &'static str> {
+    // Creates a new stack allocation instruction in the entry block of the function.
+    fn create_entry_block_alloca(&self, name: &str) -> PointerValue<'ctx> {
+        let builder = self.context.create_builder();
+
+        let entry = self.fn_value_opt.unwrap().get_first_basic_block().unwrap();
+
+        match entry.get_first_instruction() {
+            Some(first_instr) => builder.position_before(&first_instr),
+            None => builder.position_at_end(entry),
+        }
+
+        builder.build_alloca(self.context.f64_type(), name)
+    }
+
+    fn compile_fn(&mut self) -> CodegenResult<FunctionValue<'ctx>> {
         let proto = &self.function.prototype;
         let function = self.compile_prototype(proto)?;
 
@@ -57,9 +75,11 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         self.fn_value_opt = Some(function);
 
         self.variables.reserve(proto.args.len());
+
         for (i, arg) in function.get_param_iter().enumerate() {
-            self.variables
-                .insert(proto.args[i].clone(), arg.into_pointer_value());
+            let alloca = self.create_entry_block_alloca(proto.args[i].as_str());
+            self.builder.build_store(alloca, arg);
+            self.variables.insert(proto.args[i].clone(), alloca);
         }
 
         match &self.function.body {
@@ -69,7 +89,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                 for expr in body.iter().skip(1) {
                     res = self.compile_expr(expr)?;
                 }
-                
+
                 self.builder.build_return(Some(&res));
             }
             None => {
@@ -84,11 +104,11 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             unsafe {
                 function.delete();
             }
-            Err("Invalid generated function.")
+            Err(CodegenError::InvalidGeneratedFunction())
         }
     }
 
-    fn compile_prototype(&self, proto: &Prototype) -> Result<FunctionValue<'ctx>, &'static str> {
+    fn compile_prototype(&self, proto: &Prototype) -> CodegenResult<FunctionValue<'ctx>> {
         // Creates n 64 bit floats, since, for the moment, only floats can be used as args (being n the number of args)
         let args_types = std::iter::repeat(self.context.f64_type())
             .take(proto.args.len())
@@ -110,16 +130,17 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         Ok(fn_val)
     }
 
-    fn compile_expr(&self, expr: &Expr) -> CompilerResult {
+    fn compile_expr(&self, expr: &Expr) -> CodegenResult<FloatValue<'ctx>> {
         match expr {
             Expr::Literal { value } => self.compile_literal(value),
             Expr::Binary(expr) => self.compile_binary(expr),
             Expr::Unary(expr) => self.compile_unary(expr),
             Expr::Grouping { expression } => self.compile_grouping(),
+            Expr::Variable(name) => self.compile_variable(name.as_str()),
         }
     }
 
-    fn compile_literal(&self, literal: &LiteralValue) -> CompilerResult {
+    fn compile_literal(&self, literal: &LiteralValue) -> CodegenResult<FloatValue<'ctx>> {
         match literal {
             LiteralValue::Boolean(_) => todo!(),
             LiteralValue::Number(number) => Ok(self.context.f64_type().const_float(*number)),
@@ -127,7 +148,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         }
     }
 
-    fn compile_binary(&self, expr: &BinaryExpr) -> CompilerResult {
+    fn compile_binary(&self, expr: &BinaryExpr) -> CodegenResult<FloatValue<'ctx>> {
         let lhs = self.compile_expr(&*expr.left)?;
         let rhs = self.compile_expr(&*expr.right)?;
 
@@ -152,15 +173,24 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                 self.builder
                     .build_unsigned_int_to_float(cmp, self.context.f64_type(), "booltmp")
             }),
-            _ => Err("Undefined binary operator"),
+            _ => Err(CodegenError::UndefinedBinaryOperator()),
         }
     }
 
-    fn compile_unary(&self, expr: &UnaryExpr) -> CompilerResult {
+    fn compile_unary(&self, expr: &UnaryExpr) -> CodegenResult<FloatValue<'ctx>> {
         todo!()
     }
 
-    fn compile_grouping(&self) -> CompilerResult {
+    fn compile_grouping(&self) -> CodegenResult<FloatValue<'ctx>> {
         todo!()
+    }
+
+    fn compile_variable(&self, name: &str) -> CodegenResult<FloatValue<'ctx>> {
+        match self.variables.get(name) {
+            Some(var) => Ok(self.builder.build_load(*var, name).into_float_value()),
+            None => Err(CodegenError::UndeclaredVariableOrOutOfScope(
+                name.to_string(),
+            )),
+        }
     }
 }

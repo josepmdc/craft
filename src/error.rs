@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-use crate::parser::error::ParseError;
+use crate::{parser::error::ParseError, codegen::error::CodegenError};
 
 pub fn report(line: i32, col: i32, message: String) {
     println!("[line {}, col {}] Error: {}", line, col, message);
@@ -11,5 +11,5 @@ pub enum CompilerError {
     #[error("Parsing Error: {0}")]
     ParseError(#[from] ParseError),
     #[error("Compiling Error: {0}")]
-    CompileError(String),
+    CodegenError(#[from] CodegenError),
 }
