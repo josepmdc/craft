@@ -137,6 +137,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             Expr::Unary(expr) => self.compile_unary(expr),
             Expr::Grouping { expression } => self.compile_grouping(),
             Expr::Variable(name) => self.compile_variable(name.as_str()),
+            Expr::FnCall { fn_name, args } => todo!(),
         }
     }
 

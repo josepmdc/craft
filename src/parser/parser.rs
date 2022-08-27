@@ -36,6 +36,7 @@ pub enum Expr {
     Literal { value: LiteralValue },
     Grouping { expression: Box<Expr> },
     Variable(String),
+    FnCall { fn_name: String, args: Vec<Expr> },
 }
 
 #[derive(Debug)]
@@ -280,7 +281,7 @@ impl Parser {
     }
 
     fn parse_primary(&mut self) -> ParseResult<Expr> {
-        let expr = match &self.current().type_ {
+        let expr = match self.current().to_owned().type_ {
             TokenType::False => Expr::Literal {
                 value: LiteralValue::Boolean(false),
             },
@@ -293,15 +294,14 @@ impl Parser {
             TokenType::Number { literal } => Expr::Literal {
                 value: LiteralValue::Number(literal.clone()),
             },
-            TokenType::LeftParen => {
+            TokenType::LeftParen => self.parse_grouping()?,
+            TokenType::Identifier(id) => {
                 self.advance()?;
-                let expr = self.parse_expr()?;
-                self.assert_current_type(TokenType::RightParen, ParseError::MissingRightParen())?;
-                Expr::Grouping {
-                    expression: Box::new(expr),
+                match self.current().type_ {
+                    TokenType::LeftParen => self.parse_fn_call(id)?,
+                    _ => Expr::Variable(id.to_string()),
                 }
             }
-            TokenType::Identifier(id) => Expr::Variable(id.to_string()),
             _ => {
                 let token = self.current();
                 return Err(
@@ -311,6 +311,46 @@ impl Parser {
         };
         self.advance()?;
         Ok(expr)
+    }
+
+    fn parse_grouping(&mut self) -> ParseResult<Expr> {
+        self.advance()?;
+        let expr = self.parse_expr()?;
+        self.assert_current_type(TokenType::RightParen, ParseError::MissingRightParen())?;
+        Ok(Expr::Grouping {
+            expression: Box::new(expr),
+        })
+    }
+
+    fn parse_fn_call(&mut self, name: String) -> ParseResult<Expr> {
+        self.advance()?; // Skip opening '('
+
+        if let TokenType::RightParen = self.current().type_ {
+            return Ok(Expr::FnCall {
+                fn_name: name,
+                args: vec![],
+            });
+        }
+
+        let mut args = vec![];
+
+        loop {
+            args.push(self.parse_expr()?);
+
+            match self.current().type_ {
+                TokenType::Comma => self.advance()?,
+                TokenType::RightParen => {
+                    self.advance()?;
+                    break;
+                }
+                _ => return Err(ParseError::MissingCommaOrRightParen()),
+            }
+        }
+
+        Ok(Expr::FnCall {
+            fn_name: name,
+            args,
+        })
     }
 
     fn match_any<const L: usize>(&self, types: [TokenType; L]) -> bool {
