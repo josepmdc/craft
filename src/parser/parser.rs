@@ -46,7 +46,7 @@ pub struct Prototype {
 #[derive(Debug)]
 pub struct Function {
     pub prototype: Prototype,
-    pub body: Option<Expr>,
+    pub body: Option<Vec<Expr>>,
     pub is_anon: bool,
 }
 
@@ -100,7 +100,20 @@ impl Parser {
             });
         }
 
-        let body = self.parse_expr()?;
+        let mut body = vec![];
+        loop {
+            body.push(self.parse_expr()?);
+
+            if self.is_at_end() {
+                return Err(ParseError::UnexpectedEndOfSource());
+            }
+
+            if self.current().type_ == TokenType::RightBrace {
+                self.advance()?;
+                break;
+            }
+        }
+
         Ok(Function {
             prototype,
             body: Some(body),
@@ -166,7 +179,7 @@ impl Parser {
                     name: ANONYMOUS_FUNCTION_NAME.to_string(),
                     args: vec![],
                 },
-                body: Some(expr),
+                body: Some(vec![expr]),
                 is_anon: true,
             }),
 
@@ -177,7 +190,10 @@ impl Parser {
     fn parse_expr(&mut self) -> ParseResult<Expr> {
         let expr = self.parse_equality();
         match self.current().type_ {
-            TokenType::Semicolon => expr,
+            TokenType::Semicolon => {
+                self.advance()?;
+                expr
+            }
             _ => Err(ParseError::MissingSemicolon()),
         }
     }
