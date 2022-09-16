@@ -192,13 +192,7 @@ impl Parser {
 
     fn parse_expr(&mut self) -> ParseResult<Expr> {
         let expr = self.parse_equality();
-        match self.current().type_ {
-            TokenType::Semicolon => {
-                self.advance()?;
-                expr
-            }
-            _ => Err(ParseError::MissingSemicolon()),
-        }
+        expr
     }
 
     fn parse_equality(&mut self) -> ParseResult<Expr> {
@@ -295,13 +289,13 @@ impl Parser {
                 value: LiteralValue::Number(literal.clone()),
             },
             TokenType::LeftParen => self.parse_grouping()?,
-            TokenType::Identifier(id) => {
-                self.advance()?;
-                match self.current().type_ {
-                    TokenType::LeftParen => self.parse_fn_call(id)?,
-                    _ => Expr::Variable(id.to_string()),
+            TokenType::Identifier(id) => match self.peek().type_ {
+                TokenType::LeftParen => {
+                    self.advance()?;
+                    self.parse_fn_call(id)?
                 }
-            }
+                _ => Expr::Variable(id.to_string()),
+            },
             _ => {
                 let token = self.current();
                 return Err(
@@ -343,7 +337,9 @@ impl Parser {
                     self.advance()?;
                     break;
                 }
-                _ => return Err(ParseError::MissingCommaOrRightParen()),
+                _ => {
+                    return Err(ParseError::MissingCommaOrRightParen());
+                }
             }
         }
 
@@ -382,6 +378,10 @@ impl Parser {
 
     fn current(&self) -> &Token {
         self.tokens.get(self.current_index).unwrap()
+    }
+
+    fn peek(&self) -> &Token {
+        self.tokens.get(self.current_index + 1).unwrap()
     }
 
     fn is_at_end(&self) -> bool {
