@@ -2,7 +2,7 @@ use std::fmt;
 
 use crate::error;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Location {
     pub col: i32,
     pub line: i32,
@@ -43,7 +43,7 @@ pub enum TokenType {
     False,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Token {
     pub type_: TokenType,
     pub lexeme: String,

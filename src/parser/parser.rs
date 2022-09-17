@@ -9,27 +9,27 @@ type ParseResult<T> = Result<T, ParseError>;
 
 pub const ANONYMOUS_FUNCTION_NAME: &str = "anonymous";
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum LiteralValue {
     Boolean(bool),
     Number(f64),
     String(String),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct BinaryExpr {
     pub left: Box<Expr>,
     pub operator: Token,
     pub right: Box<Expr>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct UnaryExpr {
     pub operator: Token,
     pub right: Box<Expr>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Expr {
     Binary(BinaryExpr),
     Unary(UnaryExpr),
@@ -39,7 +39,7 @@ pub enum Expr {
     FnCall { fn_name: String, args: Vec<Expr> },
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Prototype {
     pub name: String,
     pub args: Vec<String>,
@@ -408,5 +408,180 @@ impl Parser {
             };
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        lex::{Location, Scanner, Token, TokenType},
+        parser::parser::{
+            BinaryExpr, Expr, Function, LiteralValue, Prototype, ANONYMOUS_FUNCTION_NAME,
+        },
+    };
+
+    use super::Parser;
+
+    #[test]
+    fn parse_arithmetic() {
+        let mut scanner = Scanner::new("2 + 2 * 3 / 2".to_string());
+        let tokens = scanner.scan_tokens();
+        let mut parser = Parser::new(tokens.to_vec());
+        let actual_ast = parser.parse().unwrap();
+
+        let expected_ast = Function {
+            prototype: Prototype {
+                name: ANONYMOUS_FUNCTION_NAME.to_string(),
+                args: vec![],
+            },
+            body: Some(vec![Expr::Binary(BinaryExpr {
+                left: Box::new(Expr::Literal {
+                    value: LiteralValue::Number(2.0),
+                }),
+                operator: Token {
+                    type_: TokenType::Plus,
+                    lexeme: "+".to_string(),
+                    loc: Location { col: 3, line: 1 },
+                },
+                right: Box::new(Expr::Binary(BinaryExpr {
+                    left: Box::new(Expr::Binary(BinaryExpr {
+                        left: Box::new(Expr::Literal {
+                            value: LiteralValue::Number(2.0),
+                        }),
+                        operator: Token {
+                            type_: TokenType::Star,
+                            lexeme: "*".to_string(),
+                            loc: Location { col: 7, line: 1 },
+                        },
+                        right: Box::new(Expr::Literal {
+                            value: LiteralValue::Number(3.0),
+                        }),
+                    })),
+                    operator: Token {
+                        type_: TokenType::Slash,
+                        lexeme: "/".to_string(),
+                        loc: Location { col: 11, line: 1 },
+                    },
+                    right: Box::new(Expr::Literal {
+                        value: LiteralValue::Number(2.0),
+                    }),
+                })),
+            })]),
+            is_anon: true,
+        };
+
+        assert_eq!(expected_ast.body.unwrap(), actual_ast.body.unwrap());
+    }
+
+    #[test]
+    fn parse_parenthesized_arithmetic() {
+        let mut scanner = Scanner::new("(2 + 2) * 3 / 2".to_string());
+        let tokens = scanner.scan_tokens();
+        let mut parser = Parser::new(tokens.to_vec());
+        let actual_ast = parser.parse().unwrap();
+        println!("{:#?}", actual_ast);
+
+        let expected_ast = Function {
+            prototype: Prototype {
+                name: ANONYMOUS_FUNCTION_NAME.to_string(),
+                args: vec![],
+            },
+            body: Some(vec![Expr::Binary(BinaryExpr {
+                left: Box::new(Expr::Binary(BinaryExpr {
+                    left: Box::new(Expr::Grouping {
+                        expression: Box::new(Expr::Binary(BinaryExpr {
+                            left: Box::new(Expr::Literal {
+                                value: LiteralValue::Number(2.0),
+                            }),
+                            operator: Token {
+                                type_: TokenType::Plus,
+                                lexeme: "+".to_string(),
+                                loc: Location { col: 4, line: 1 },
+                            },
+                            right: Box::new(Expr::Literal {
+                                value: LiteralValue::Number(2.0),
+                            }),
+                        })),
+                    }),
+                    operator: Token {
+                        type_: TokenType::Star,
+                        lexeme: "*".to_string(),
+                        loc: Location { col: 9, line: 1 },
+                    },
+                    right: Box::new(Expr::Literal {
+                        value: LiteralValue::Number(3.0),
+                    }),
+                })),
+                operator: Token {
+                    type_: TokenType::Slash,
+                    lexeme: "/".to_string(),
+                    loc: Location { col: 13, line: 1 },
+                },
+                right: Box::new(Expr::Literal {
+                    value: LiteralValue::Number(2.0),
+                }),
+            })]),
+            is_anon: true,
+        };
+
+        assert_eq!(expected_ast.body.unwrap(), actual_ast.body.unwrap());
+    }
+
+    #[test]
+    fn parse_function_definition() {
+        let mut scanner = Scanner::new("fn main(a, b) { 2 + 2 }".to_string());
+        let tokens = scanner.scan_tokens();
+        let mut parser = Parser::new(tokens.to_vec());
+        let actual_ast = parser.parse().unwrap();
+        println!("{:#?}", actual_ast);
+
+        let expected_ast = Function {
+            prototype: Prototype {
+                name: "main".to_string(),
+                args: vec!["a".to_string(), "b".to_string()],
+            },
+            body: Some(vec![Expr::Binary(BinaryExpr {
+                left: Box::new(Expr::Literal {
+                    value: LiteralValue::Number(2.0),
+                }),
+                operator: Token {
+                    type_: TokenType::Plus,
+                    lexeme: "+".to_string(),
+                    loc: Location { col: 19, line: 1 },
+                },
+                right: Box::new(Expr::Literal {
+                    value: LiteralValue::Number(2.0),
+                }),
+            })]),
+            is_anon: false,
+        };
+
+        assert_eq!(expected_ast.body.unwrap(), actual_ast.body.unwrap());
+    }
+
+    #[test]
+    fn parse_function_call() {
+        let mut scanner = Scanner::new("main(a, b);".to_string());
+        let tokens = scanner.scan_tokens();
+        let mut parser = Parser::new(tokens.to_vec());
+        let actual_ast = parser.parse().unwrap();
+        println!("{:#?}", actual_ast);
+
+        let expected_ast = Function {
+            prototype: Prototype {
+                name: ANONYMOUS_FUNCTION_NAME.to_string(),
+                args: vec![],
+            },
+            body: Some(vec![Expr::FnCall {
+                fn_name: "main".to_string(),
+                args: vec![
+                    Expr::Variable("a".to_string()),
+                    Expr::Variable("b".to_string()),
+                ],
+            }]),
+            is_anon: true,
+        };
+
+        assert_eq!(expected_ast.body.unwrap(), actual_ast.body.unwrap());
     }
 }
