@@ -4,7 +4,7 @@ pub mod error;
 
 use std::collections::HashMap;
 
-use llvm::{
+use inkwell::{
     builder::Builder,
     context::Context,
     module::Module,

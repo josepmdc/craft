@@ -10,12 +10,17 @@ use std::{
 
 use error::CompilerError;
 use lex::Scanner;
-use llvm::{context::Context, module::Module, OptimizationLevel};
+use inkwell::{context::Context, module::Module, OptimizationLevel};
 use parser::parser::{Function, Parser, ANONYMOUS_FUNCTION_NAME};
 
 use crate::codegen::Compiler;
 
+#[macro_use]
+extern crate log;
+
 fn main() {
+    env_logger::init();
+
     let args: Vec<String> = env::args().collect();
     if args.len() > 2 {
         println!("Usage: craft [script]");
@@ -56,6 +61,7 @@ fn run_repl() {
 }
 
 fn run(source: String) -> Result<(), CompilerError> {
+    trace!("\n{}", source);
     let mut scanner = Scanner::new(source);
     let tokens = scanner.scan_tokens();
     let mut parser = Parser::new(tokens.to_vec());
