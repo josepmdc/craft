@@ -84,6 +84,7 @@ impl Parser {
     }
 
     fn parse_fn(&mut self) -> ParseResult<Function> {
+        trace!("Parsing fn");
         self.advance()?;
 
         let prototype = self.parse_prototype()?;
@@ -115,14 +116,19 @@ impl Parser {
             }
         }
 
-        Ok(Function {
+        let func = Function {
             prototype,
             body: Some(body),
             is_anon: false,
-        })
+        };
+
+        trace!("Parsed fn: {:#?}", func);
+
+        Ok(func)
     }
 
     fn parse_prototype(&mut self) -> ParseResult<Prototype> {
+        trace!("Parsing prototype");
         let name = match &self.current().type_ {
             TokenType::Identifier(identifier) => identifier.clone(),
             _ => return Err(ParseError::PrototypeMissingIdentifier()),
@@ -142,7 +148,11 @@ impl Parser {
 
         let args = self.parse_prototype_args()?;
 
-        Ok(Prototype { name, args })
+        let proto = Prototype { name, args };
+
+        trace!("Parsed prototype: {:#?}", proto);
+
+        Ok(proto)
     }
 
     fn parse_prototype_args(&mut self) -> ParseResult<Vec<String>> {
@@ -190,11 +200,13 @@ impl Parser {
     }
 
     fn parse_expr(&mut self) -> ParseResult<Expr> {
+        trace!("Parsing expr");
         let expr = self.parse_equality();
         expr
     }
 
     fn parse_equality(&mut self) -> ParseResult<Expr> {
+        trace!("Parsing equality");
         let mut expr = self.parse_comparison()?;
         while self.match_any([TokenType::BangEqual, TokenType::EqualEqual]) {
             let operator = self.current().clone();
@@ -206,10 +218,12 @@ impl Parser {
                 right: Box::new(right),
             });
         }
+        trace!("Parsed equality: {:#?}", expr);
         Ok(expr)
     }
 
     fn parse_comparison(&mut self) -> ParseResult<Expr> {
+        trace!("Parsing comparison");
         let mut expr = self.parse_term()?;
 
         while self.match_any([
@@ -227,10 +241,12 @@ impl Parser {
                 right: Box::new(right),
             });
         }
+        trace!("Parsed comparison: {:#?}", expr);
         Ok(expr)
     }
 
     fn parse_term(&mut self) -> ParseResult<Expr> {
+        trace!("Parsing term");
         let mut expr = self.parse_factor()?;
         while self.match_any([TokenType::Minus, TokenType::Plus]) {
             let operator = self.current().clone();
@@ -242,10 +258,12 @@ impl Parser {
                 right: Box::new(right),
             });
         }
+        trace!("Parsed term: {:#?}", expr);
         Ok(expr)
     }
 
     fn parse_factor(&mut self) -> ParseResult<Expr> {
+        trace!("Parsing factor");
         let mut expr = self.parse_unary()?;
         while self.match_any([TokenType::Slash, TokenType::Star]) {
             let operator = self.current().clone();
@@ -257,23 +275,28 @@ impl Parser {
                 right: Box::new(right),
             });
         }
+        trace!("Parsed factor: {:#?}", expr);
         Ok(expr)
     }
 
     fn parse_unary(&mut self) -> ParseResult<Expr> {
+        trace!("Parsing unary");
         if self.match_any([TokenType::Bang, TokenType::Minus]) {
             let operator = self.current().clone();
             self.advance()?;
             let right = self.parse_primary()?;
-            return Ok(Expr::Unary(UnaryExpr {
+            let expr = Expr::Unary(UnaryExpr {
                 operator,
                 right: Box::new(right),
-            }));
+            });
+            trace!("Parsed unary: {:#?}", expr);
+            return Ok(expr);
         }
         self.parse_primary()
     }
 
     fn parse_primary(&mut self) -> ParseResult<Expr> {
+        trace!("Parsing primary");
         let expr = match self.current().to_owned().type_ {
             TokenType::False => Expr::Literal {
                 value: LiteralValue::Boolean(false),
@@ -303,17 +326,21 @@ impl Parser {
             }
         };
         self.advance()?;
+        trace!("Parsed primary: {:#?}", expr);
         Ok(expr)
     }
 
     fn parse_grouping(&mut self) -> ParseResult<Expr> {
+        trace!("Parsing grouping");
         self.advance()?;
         let expr = self.parse_expr()?;
         self.assert_current_type(TokenType::RightParen, ParseError::MissingRightParen())?;
+        trace!("Parsed grouping: {:#?}", expr);
         Ok(expr)
     }
 
     fn parse_fn_call(&mut self, name: String) -> ParseResult<Expr> {
+        trace!("Parsing fn call");
         self.advance()?; // Skip opening '('
 
         if let TokenType::RightParen = self.current().type_ {
@@ -340,10 +367,14 @@ impl Parser {
             }
         }
 
-        Ok(Expr::FnCall {
+        let expr = Expr::FnCall {
             fn_name: name,
             args,
-        })
+        };
+
+        trace!("Parsed fn call: {:#?}", expr);
+
+        Ok(expr)
     }
 
     fn match_any<const L: usize>(&self, types: [TokenType; L]) -> bool {
@@ -365,12 +396,15 @@ impl Parser {
         if self.is_at_end() {
             return Err(ParseError::UnexpectedEndOfSource());
         }
+
+        trace!(
+            "Advanced from \"{}\" to \"{}\"",
+            self.current().lexeme,
+            self.tokens[self.current_index + 1].lexeme,
+        );
+
         self.current_index += 1;
         Ok(())
-    }
-
-    fn previous(&self) -> &Token {
-        self.tokens.get(self.current_index - 1).unwrap()
     }
 
     fn current(&self) -> &Token {
@@ -388,23 +422,6 @@ impl Parser {
     fn report_error(&self, token: &Token, error: ParseError) -> ParseError {
         error::report(token.loc.line, token.loc.col, error.to_string());
         error
-    }
-
-    // TODO Use sync when there's an error
-    fn sync(&mut self) -> ParseResult<()> {
-        self.advance()?;
-
-        while !self.is_at_end() {
-            if self.previous().type_ == TokenType::Semicolon {
-                return Ok(());
-            }
-
-            match self.current().type_ {
-                TokenType::Fn => return Ok(()),
-                _ => self.advance()?,
-            };
-        }
-        Ok(())
     }
 }
 
@@ -476,7 +493,6 @@ mod tests {
         let tokens = scanner.scan_tokens();
         let mut parser = Parser::new(tokens.to_vec());
         let actual_ast = parser.parse().unwrap();
-        println!("{:#?}", actual_ast);
 
         let expected_ast = Function {
             prototype: Prototype {
@@ -528,7 +544,6 @@ mod tests {
         let tokens = scanner.scan_tokens();
         let mut parser = Parser::new(tokens.to_vec());
         let actual_ast = parser.parse().unwrap();
-        println!("{:#?}", actual_ast);
 
         let expected_ast = Function {
             prototype: Prototype {
@@ -560,7 +575,6 @@ mod tests {
         let tokens = scanner.scan_tokens();
         let mut parser = Parser::new(tokens.to_vec());
         let actual_ast = parser.parse().unwrap();
-        println!("{:#?}", actual_ast);
 
         let expected_ast = Function {
             prototype: Prototype {
