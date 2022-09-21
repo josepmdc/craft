@@ -8,5 +8,9 @@ pub enum CodegenError {
     UndefinedBinaryOperator(),
     #[error("Invalid generated function.")]
     InvalidGeneratedFunction(),
+    #[error("Invalid call to function {0}")]
+    InvalidCall(String),
+    #[error("Unkown function {0}")]
+    UnkownFunction(String),
 }
 
