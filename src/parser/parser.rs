@@ -34,7 +34,6 @@ pub enum Expr {
     Binary(BinaryExpr),
     Unary(UnaryExpr),
     Literal { value: LiteralValue },
-    Grouping { expression: Box<Expr> },
     Variable(String),
     FnCall { fn_name: String, args: Vec<Expr> },
 }
@@ -311,9 +310,7 @@ impl Parser {
         self.advance()?;
         let expr = self.parse_expr()?;
         self.assert_current_type(TokenType::RightParen, ParseError::MissingRightParen())?;
-        Ok(Expr::Grouping {
-            expression: Box::new(expr),
-        })
+        Ok(expr)
     }
 
     fn parse_fn_call(&mut self, name: String) -> ParseResult<Expr> {
@@ -488,21 +485,19 @@ mod tests {
             },
             body: Some(vec![Expr::Binary(BinaryExpr {
                 left: Box::new(Expr::Binary(BinaryExpr {
-                    left: Box::new(Expr::Grouping {
-                        expression: Box::new(Expr::Binary(BinaryExpr {
-                            left: Box::new(Expr::Literal {
-                                value: LiteralValue::Number(2.0),
-                            }),
-                            operator: Token {
-                                type_: TokenType::Plus,
-                                lexeme: "+".to_string(),
-                                loc: Location { col: 4, line: 1 },
-                            },
-                            right: Box::new(Expr::Literal {
-                                value: LiteralValue::Number(2.0),
-                            }),
-                        })),
-                    }),
+                    left: Box::new(Expr::Binary(BinaryExpr {
+                        left: Box::new(Expr::Literal {
+                            value: LiteralValue::Number(2.0),
+                        }),
+                        operator: Token {
+                            type_: TokenType::Plus,
+                            lexeme: "+".to_string(),
+                            loc: Location { col: 4, line: 1 },
+                        },
+                        right: Box::new(Expr::Literal {
+                            value: LiteralValue::Number(2.0),
+                        }),
+                    })),
                     operator: Token {
                         type_: TokenType::Star,
                         lexeme: "*".to_string(),

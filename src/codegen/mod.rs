@@ -9,7 +9,7 @@ use llvm::{
     context::Context,
     module::Module,
     types::BasicMetadataTypeEnum,
-    values::{BasicValue, FloatValue, FunctionValue, PointerValue},
+    values::{BasicValue, FloatValue, FunctionValue, PointerValue, BasicMetadataValueEnum},
     FloatPredicate,
 };
 
@@ -135,9 +135,41 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             Expr::Literal { value } => self.compile_literal(value),
             Expr::Binary(expr) => self.compile_binary(expr),
             Expr::Unary(expr) => self.compile_unary(expr),
-            Expr::Grouping { expression } => self.compile_grouping(),
             Expr::Variable(name) => self.compile_variable(name.as_str()),
-            Expr::FnCall { fn_name, args } => todo!(),
+            Expr::FnCall { fn_name, args } => self.compile_fn_call(fn_name, args),
+        }
+    }
+
+    fn compile_fn_call(
+        &self,
+        fn_name: &String,
+        args: &Vec<Expr>,
+    ) -> CodegenResult<FloatValue<'ctx>> {
+        match self.module.get_function(fn_name.as_str()) {
+            Some(fun) => {
+                let mut compiled_args = Vec::with_capacity(args.len());
+
+                for arg in args {
+                    compiled_args.push(self.compile_expr(arg)?);
+                }
+
+                let argsv: Vec<BasicMetadataValueEnum> = compiled_args
+                    .iter()
+                    .by_ref()
+                    .map(|&val| val.into())
+                    .collect();
+
+                match self
+                    .builder
+                    .build_call(fun, argsv.as_slice(), "tmp")
+                    .try_as_basic_value()
+                    .left()
+                {
+                    Some(value) => Ok(value.into_float_value()),
+                    None => Err(CodegenError::InvalidCall(fn_name.to_owned())),
+                }
+            }
+            None => Err(CodegenError::UnkownFunction(fn_name.to_owned())),
         }
     }
 
@@ -179,10 +211,6 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
     }
 
     fn compile_unary(&self, expr: &UnaryExpr) -> CodegenResult<FloatValue<'ctx>> {
-        todo!()
-    }
-
-    fn compile_grouping(&self) -> CodegenResult<FloatValue<'ctx>> {
         todo!()
     }
 
