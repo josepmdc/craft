@@ -9,11 +9,14 @@ use std::{
 };
 
 use error::CompilerError;
-use lex::Scanner;
 use inkwell::{context::Context, module::Module, OptimizationLevel};
-use parser::parser::{Function, Parser, ANONYMOUS_FUNCTION_NAME};
+use lex::Scanner;
+use parser::{
+    parser::{Parser, ANONYMOUS_FUNCTION_NAME},
+    stmt::Function,
+};
 
-use crate::codegen::Compiler;
+use crate::{codegen::Compiler, parser::stmt::Stmt};
 
 #[macro_use]
 extern crate log;
@@ -53,7 +56,7 @@ fn run_repl() {
         } else if input.chars().all(char::is_whitespace) {
             continue;
         }
-        
+
         if let Err(err) = run(input) {
             println!("{}", err);
         }
@@ -66,7 +69,12 @@ fn run(source: String) -> Result<(), CompilerError> {
     let tokens = scanner.scan_tokens();
     let mut parser = Parser::new(tokens.to_vec());
     let func = parser.parse()?;
-    compile(func)?;
+    // TODO This is only for testing, it will be properly implemented later
+    let func = match &func[0] {
+        Stmt::Function(func) => func,
+        _ => panic!("Expected a function"),
+    };
+    compile(func.clone())?;
     Ok(())
 }
 

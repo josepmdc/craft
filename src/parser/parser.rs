@@ -1,11 +1,16 @@
 use crate::{
     error,
-    lex::{Token, TokenType},
+    lex::{Token, TokenKind},
+    parser::stmt::Function,
 };
 
-use super::error::ParseError;
+use super::{
+    error::ParseError,
+    expr::Expr,
+    stmt::{Prototype, Stmt},
+};
 
-type ParseResult<T> = Result<T, ParseError>;
+pub type ParseResult<T> = Result<T, ParseError>;
 
 pub const ANONYMOUS_FUNCTION_NAME: &str = "anonymous";
 
@@ -16,59 +21,12 @@ pub enum LiteralValue {
     String(String),
 }
 
-#[derive(Debug, PartialEq)]
-pub struct BinaryExpr {
-    pub left: Box<Expr>,
-    pub operator: Token,
-    pub right: Box<Expr>,
-}
-
-#[derive(Debug, PartialEq)]
-pub struct UnaryExpr {
-    pub operator: Token,
-    pub right: Box<Expr>,
-}
-
-#[derive(Debug, PartialEq)]
-pub enum Expr {
-    Binary(BinaryExpr),
-    Unary(UnaryExpr),
-    Literal { value: LiteralValue },
-    Variable(String),
-    FnCall { fn_name: String, args: Vec<Expr> },
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub struct Prototype {
-    pub name: String,
-    pub args: Vec<String>,
-}
-
-#[derive(Debug)]
-pub struct Function {
-    pub prototype: Prototype,
-    pub body: Option<Vec<Expr>>,
-    pub is_anon: bool,
-}
-
 pub struct Parser {
     tokens: Vec<Token>,
     current_index: usize,
 }
 
 impl Parser {
-    /*
-        expression     → equality ;
-        equality       → comparison ( ( "!=" | "==" ) comparison )* ;
-        comparison     → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
-        term           → factor ( ( "-" | "+" ) factor )* ;
-        factor         → unary ( ( "/" | "*" ) unary )* ;
-        unary          → ( "!" | "-" ) unary
-                       | primary ;
-        primary        → NUMBER | STRING | "true" | "false" | "nil"
-                       | "(" expression ")" ;
-    */
-
     pub fn new(tokens: Vec<Token>) -> Self {
         Self {
             tokens,
@@ -76,30 +34,34 @@ impl Parser {
         }
     }
 
-    pub fn parse(&mut self) -> ParseResult<Function> {
-        match self.current().type_ {
-            TokenType::Fn => self.parse_fn(),
-            _ => self.parse_toplevel_expr(),
+    pub fn parse(&mut self) -> ParseResult<Vec<Stmt>> {
+        let mut statments: Vec<Stmt> = Vec::new();
+        while !self.is_at_end() {
+            statments.push(match self.current().kind {
+                TokenKind::Fn => self.parse_fn()?,
+                _ => self.parse_toplevel_expr()?,
+            });
         }
+        Ok(statments)
     }
 
-    fn parse_fn(&mut self) -> ParseResult<Function> {
+    fn parse_fn(&mut self) -> ParseResult<Stmt> {
         trace!("Parsing fn");
         self.advance()?;
 
         let prototype = self.parse_prototype()?;
 
-        match self.current().type_ {
-            TokenType::LeftBrace => self.advance()?,
+        match self.current().kind {
+            TokenKind::LeftBrace => self.advance()?,
             _ => return Err(ParseError::MissingLeftBrace()),
         };
 
-        if self.current().type_ == TokenType::RightBrace {
-            return Ok(Function {
+        if self.current().kind == TokenKind::RightBrace {
+            return Ok(Stmt::Function(Function {
                 prototype,
-                body: None,
+                body: vec![],
                 is_anon: false,
-            });
+            }));
         }
 
         let mut body = vec![];
@@ -110,17 +72,17 @@ impl Parser {
                 return Err(ParseError::UnexpectedEndOfSource());
             }
 
-            if self.current().type_ == TokenType::RightBrace {
+            if self.current().kind == TokenKind::RightBrace {
                 self.advance()?;
                 break;
             }
         }
 
-        let func = Function {
+        let func = Stmt::Function(Function {
             prototype,
-            body: Some(body),
+            body,
             is_anon: false,
-        };
+        });
 
         trace!("Parsed fn: {:#?}", func);
 
@@ -129,19 +91,19 @@ impl Parser {
 
     fn parse_prototype(&mut self) -> ParseResult<Prototype> {
         trace!("Parsing prototype");
-        let name = match &self.current().type_ {
-            TokenType::Identifier(identifier) => identifier.clone(),
+        let name = match &self.current().kind {
+            TokenKind::Identifier(identifier) => identifier.clone(),
             _ => return Err(ParseError::PrototypeMissingIdentifier()),
         };
 
         self.advance()?;
 
-        match self.current().type_ {
-            TokenType::LeftParen => self.advance()?,
+        match self.current().kind {
+            TokenKind::LeftParen => self.advance()?,
             _ => return Err(ParseError::MissingLeftParen()),
         }
 
-        if self.current().type_ == TokenType::RightParen {
+        if self.current().kind == TokenKind::RightParen {
             self.advance()?;
             return Ok(Prototype { name, args: vec![] });
         }
@@ -159,20 +121,20 @@ impl Parser {
         let mut args = vec![];
 
         loop {
-            match &self.current().type_ {
-                TokenType::Identifier(id) => {
+            match &self.current().kind {
+                TokenKind::Identifier(id) => {
                     args.push(id.clone());
                     self.advance()?;
                 }
                 _ => return Err(ParseError::PrototypeMissingRightParenOrComma()),
             }
 
-            match self.current().type_ {
-                TokenType::RightParen => {
+            match self.current().kind {
+                TokenKind::RightParen => {
                     self.advance()?;
                     break;
                 }
-                TokenType::Comma => {
+                TokenKind::Comma => {
                     self.advance()?;
                 }
                 _ => {
@@ -184,166 +146,11 @@ impl Parser {
         Ok(args)
     }
 
-    fn parse_toplevel_expr(&mut self) -> ParseResult<Function> {
-        match self.parse_expr() {
-            Ok(expr) => Ok(Function {
-                prototype: Prototype {
-                    name: ANONYMOUS_FUNCTION_NAME.to_string(),
-                    args: vec![],
-                },
-                body: Some(vec![expr]),
-                is_anon: true,
-            }),
-
-            Err(err) => Err(err),
-        }
-    }
-
-    fn parse_expr(&mut self) -> ParseResult<Expr> {
-        trace!("Parsing expr");
-        let expr = self.parse_equality();
-        expr
-    }
-
-    fn parse_equality(&mut self) -> ParseResult<Expr> {
-        trace!("Parsing equality");
-        let mut expr = self.parse_comparison()?;
-        while self.match_any([TokenType::BangEqual, TokenType::EqualEqual]) {
-            let operator = self.current().clone();
-            self.advance()?;
-            let right = self.parse_comparison()?;
-            expr = Expr::Binary(BinaryExpr {
-                left: Box::new(expr),
-                operator,
-                right: Box::new(right),
-            });
-        }
-        trace!("Parsed equality: {:#?}", expr);
-        Ok(expr)
-    }
-
-    fn parse_comparison(&mut self) -> ParseResult<Expr> {
-        trace!("Parsing comparison");
-        let mut expr = self.parse_term()?;
-
-        while self.match_any([
-            TokenType::Greater,
-            TokenType::GreaterEqual,
-            TokenType::Less,
-            TokenType::LessEqual,
-        ]) {
-            let operator = self.current().clone();
-            self.advance()?;
-            let right = self.parse_term()?;
-            expr = Expr::Binary(BinaryExpr {
-                left: Box::new(expr),
-                operator,
-                right: Box::new(right),
-            });
-        }
-        trace!("Parsed comparison: {:#?}", expr);
-        Ok(expr)
-    }
-
-    fn parse_term(&mut self) -> ParseResult<Expr> {
-        trace!("Parsing term");
-        let mut expr = self.parse_factor()?;
-        while self.match_any([TokenType::Minus, TokenType::Plus]) {
-            let operator = self.current().clone();
-            self.advance()?;
-            let right = self.parse_term()?;
-            expr = Expr::Binary(BinaryExpr {
-                left: Box::new(expr),
-                operator,
-                right: Box::new(right),
-            });
-        }
-        trace!("Parsed term: {:#?}", expr);
-        Ok(expr)
-    }
-
-    fn parse_factor(&mut self) -> ParseResult<Expr> {
-        trace!("Parsing factor");
-        let mut expr = self.parse_unary()?;
-        while self.match_any([TokenType::Slash, TokenType::Star]) {
-            let operator = self.current().clone();
-            self.advance()?;
-            let right = self.parse_unary()?;
-            expr = Expr::Binary(BinaryExpr {
-                left: Box::new(expr),
-                operator,
-                right: Box::new(right),
-            });
-        }
-        trace!("Parsed factor: {:#?}", expr);
-        Ok(expr)
-    }
-
-    fn parse_unary(&mut self) -> ParseResult<Expr> {
-        trace!("Parsing unary");
-        if self.match_any([TokenType::Bang, TokenType::Minus]) {
-            let operator = self.current().clone();
-            self.advance()?;
-            let right = self.parse_primary()?;
-            let expr = Expr::Unary(UnaryExpr {
-                operator,
-                right: Box::new(right),
-            });
-            trace!("Parsed unary: {:#?}", expr);
-            return Ok(expr);
-        }
-        self.parse_primary()
-    }
-
-    fn parse_primary(&mut self) -> ParseResult<Expr> {
-        trace!("Parsing primary");
-        let expr = match self.current().to_owned().type_ {
-            TokenType::False => Expr::Literal {
-                value: LiteralValue::Boolean(false),
-            },
-            TokenType::True => Expr::Literal {
-                value: LiteralValue::Boolean(true),
-            },
-            TokenType::String { literal } => Expr::Literal {
-                value: LiteralValue::String(literal.clone()),
-            },
-            TokenType::Number { literal } => Expr::Literal {
-                value: LiteralValue::Number(literal.clone()),
-            },
-            TokenType::LeftParen => self.parse_grouping()?,
-            TokenType::Identifier(id) => match self.peek().type_ {
-                TokenType::LeftParen => {
-                    self.advance()?;
-                    self.parse_fn_call(id)?
-                }
-                _ => Expr::Variable(id.to_string()),
-            },
-            _ => {
-                let token = self.current();
-                return Err(
-                    self.report_error(token, ParseError::UnexpectedToken(token.lexeme.clone()))
-                );
-            }
-        };
-        self.advance()?;
-        trace!("Parsed primary: {:#?}", expr);
-        Ok(expr)
-    }
-
-    fn parse_grouping(&mut self) -> ParseResult<Expr> {
-        trace!("Parsing grouping");
-        self.advance()?;
-        let expr = self.parse_expr()?;
-        self.assert_current_type(TokenType::RightParen, ParseError::MissingRightParen())?;
-        trace!("Parsed grouping: {:#?}", expr);
-        Ok(expr)
-    }
-
-    fn parse_fn_call(&mut self, name: String) -> ParseResult<Expr> {
+    pub fn parse_fn_call(&mut self, name: String) -> ParseResult<Expr> {
         trace!("Parsing fn call");
         self.advance()?; // Skip opening '('
 
-        if let TokenType::RightParen = self.current().type_ {
+        if let TokenKind::RightParen = self.current().kind {
             return Ok(Expr::FnCall {
                 fn_name: name,
                 args: vec![],
@@ -355,17 +162,20 @@ impl Parser {
         loop {
             args.push(self.parse_expr()?);
 
-            match self.current().type_ {
-                TokenType::Comma => self.advance()?,
-                TokenType::RightParen => {
+            match self.current().kind {
+                TokenKind::Comma => self.advance()?,
+                TokenKind::RightParen => {
                     self.advance()?;
                     break;
                 }
                 _ => {
+                    debug!("Expected comma or RightParen, found: {:#?}", self.current());
                     return Err(ParseError::MissingCommaOrRightParen());
                 }
             }
         }
+
+        self.consume(TokenKind::Semicolon, ParseError::MissingSemicolon())?;
 
         let expr = Expr::FnCall {
             fn_name: name,
@@ -377,22 +187,25 @@ impl Parser {
         Ok(expr)
     }
 
-    fn match_any<const L: usize>(&self, types: [TokenType; L]) -> bool {
+    pub fn match_any<const L: usize>(&self, types: [TokenKind; L]) -> bool {
         types.iter().any(|t| self.check_current_type(t.clone()))
     }
 
-    fn check_current_type(&self, type_: TokenType) -> bool {
-        !self.is_at_end() && type_ == self.current().type_
+    fn check_current_type(&self, kind: TokenKind) -> bool {
+        !self.is_at_end() && kind == self.current().kind
     }
 
-    fn assert_current_type(&mut self, type_: TokenType, error: ParseError) -> ParseResult<()> {
-        match self.check_current_type(type_) {
-            true => Ok(()),
+    pub fn consume(&mut self, kind: TokenKind, error: ParseError) -> ParseResult<&Token> {
+        match self.check_current_type(kind) {
+            true => {
+                self.advance()?;
+                Ok(self.previous())
+            }
             false => Err(self.report_error(self.current(), error)),
         }
     }
 
-    fn advance(&mut self) -> ParseResult<()> {
+    pub fn advance(&mut self) -> ParseResult<()> {
         if self.is_at_end() {
             return Err(ParseError::UnexpectedEndOfSource());
         }
@@ -407,19 +220,23 @@ impl Parser {
         Ok(())
     }
 
-    fn current(&self) -> &Token {
+    pub fn current(&self) -> &Token {
         self.tokens.get(self.current_index).unwrap()
     }
 
-    fn peek(&self) -> &Token {
+    pub fn previous(&self) -> &Token {
+        self.tokens.get(self.current_index - 1).unwrap()
+    }
+
+    pub fn peek(&self) -> &Token {
         self.tokens.get(self.current_index + 1).unwrap()
     }
 
     fn is_at_end(&self) -> bool {
-        self.current().type_ == TokenType::EOF
+        self.current().kind == TokenKind::EOF
     }
 
-    fn report_error(&self, token: &Token, error: ParseError) -> ParseError {
+    pub fn report_error(&self, token: &Token, error: ParseError) -> ParseError {
         error::report(token.loc.line, token.loc.col, error.to_string());
         error
     }
@@ -428,9 +245,10 @@ impl Parser {
 #[cfg(test)]
 mod tests {
     use crate::{
-        lex::{Location, Scanner, Token, TokenType},
-        parser::parser::{
-            BinaryExpr, Expr, Function, LiteralValue, Prototype, ANONYMOUS_FUNCTION_NAME,
+        lex::{Location, Scanner, Token, TokenKind},
+        parser::{
+            expr::BinaryExpr,
+            parser::{Expr, Function, LiteralValue, Prototype, ANONYMOUS_FUNCTION_NAME},
         },
     };
 
@@ -438,22 +256,24 @@ mod tests {
 
     #[test]
     fn parse_arithmetic() {
-        let mut scanner = Scanner::new("2 + 2 * 3 / 2".to_string());
+        let src = "2 + 2 * 3 / 2".to_string();
+        let mut scanner = Scanner::new(src.clone());
         let tokens = scanner.scan_tokens();
         let mut parser = Parser::new(tokens.to_vec());
         let actual_ast = parser.parse().unwrap();
+        trace!("AST for {}: \n{:#?}", src, actual_ast);
 
         let expected_ast = Function {
             prototype: Prototype {
                 name: ANONYMOUS_FUNCTION_NAME.to_string(),
                 args: vec![],
             },
-            body: Some(vec![Expr::Binary(BinaryExpr {
+            body: vec![Expr::Binary(BinaryExpr {
                 left: Box::new(Expr::Literal {
                     value: LiteralValue::Number(2.0),
                 }),
                 operator: Token {
-                    type_: TokenType::Plus,
+                    kind: TokenKind::Plus,
                     lexeme: "+".to_string(),
                     loc: Location { col: 3, line: 1 },
                 },
@@ -463,7 +283,7 @@ mod tests {
                             value: LiteralValue::Number(2.0),
                         }),
                         operator: Token {
-                            type_: TokenType::Star,
+                            kind: TokenKind::Star,
                             lexeme: "*".to_string(),
                             loc: Location { col: 7, line: 1 },
                         },
@@ -472,7 +292,7 @@ mod tests {
                         }),
                     })),
                     operator: Token {
-                        type_: TokenType::Slash,
+                        kind: TokenKind::Slash,
                         lexeme: "/".to_string(),
                         loc: Location { col: 11, line: 1 },
                     },
@@ -480,33 +300,40 @@ mod tests {
                         value: LiteralValue::Number(2.0),
                     }),
                 })),
-            })]),
+            })],
             is_anon: true,
         };
 
-        assert_eq!(expected_ast.body.unwrap(), actual_ast.body.unwrap());
+        let func = match actual_ast[0].clone() {
+            crate::parser::stmt::Stmt::Function(func) => func,
+            _ => panic!("Expected a function"),
+        };
+
+        assert_eq!(expected_ast.body, func.body);
     }
 
     #[test]
     fn parse_parenthesized_arithmetic() {
-        let mut scanner = Scanner::new("(2 + 2) * 3 / 2".to_string());
+        let src = "(2 + 2) * 3 / 2".to_string();
+        let mut scanner = Scanner::new(src.clone());
         let tokens = scanner.scan_tokens();
         let mut parser = Parser::new(tokens.to_vec());
         let actual_ast = parser.parse().unwrap();
+        trace!("AST for {}: \n{:#?}", src, actual_ast);
 
         let expected_ast = Function {
             prototype: Prototype {
                 name: ANONYMOUS_FUNCTION_NAME.to_string(),
                 args: vec![],
             },
-            body: Some(vec![Expr::Binary(BinaryExpr {
+            body: vec![Expr::Binary(BinaryExpr {
                 left: Box::new(Expr::Binary(BinaryExpr {
                     left: Box::new(Expr::Binary(BinaryExpr {
                         left: Box::new(Expr::Literal {
                             value: LiteralValue::Number(2.0),
                         }),
                         operator: Token {
-                            type_: TokenType::Plus,
+                            kind: TokenKind::Plus,
                             lexeme: "+".to_string(),
                             loc: Location { col: 4, line: 1 },
                         },
@@ -515,7 +342,7 @@ mod tests {
                         }),
                     })),
                     operator: Token {
-                        type_: TokenType::Star,
+                        kind: TokenKind::Star,
                         lexeme: "*".to_string(),
                         loc: Location { col: 9, line: 1 },
                     },
@@ -524,73 +351,101 @@ mod tests {
                     }),
                 })),
                 operator: Token {
-                    type_: TokenType::Slash,
+                    kind: TokenKind::Slash,
                     lexeme: "/".to_string(),
                     loc: Location { col: 13, line: 1 },
                 },
                 right: Box::new(Expr::Literal {
                     value: LiteralValue::Number(2.0),
                 }),
-            })]),
+            })],
             is_anon: true,
         };
 
-        assert_eq!(expected_ast.body.unwrap(), actual_ast.body.unwrap());
+        let func = match actual_ast[0].clone() {
+            crate::parser::stmt::Stmt::Function(func) => func,
+            _ => panic!("Expected a function"),
+        };
+
+        assert_eq!(expected_ast.body, func.body);
     }
 
     #[test]
     fn parse_function_definition() {
-        let mut scanner = Scanner::new("fn main(a, b) { 2 + 2 }".to_string());
+        let src = "fn main(a, b) { 2 + 2 }".to_string();
+        let mut scanner = Scanner::new(src.clone());
         let tokens = scanner.scan_tokens();
         let mut parser = Parser::new(tokens.to_vec());
         let actual_ast = parser.parse().unwrap();
+        trace!("AST for {}: \n{:#?}", src, actual_ast);
 
         let expected_ast = Function {
             prototype: Prototype {
                 name: "main".to_string(),
                 args: vec!["a".to_string(), "b".to_string()],
             },
-            body: Some(vec![Expr::Binary(BinaryExpr {
+            body: vec![Expr::Binary(BinaryExpr {
                 left: Box::new(Expr::Literal {
                     value: LiteralValue::Number(2.0),
                 }),
                 operator: Token {
-                    type_: TokenType::Plus,
+                    kind: TokenKind::Plus,
                     lexeme: "+".to_string(),
                     loc: Location { col: 19, line: 1 },
                 },
                 right: Box::new(Expr::Literal {
                     value: LiteralValue::Number(2.0),
                 }),
-            })]),
+            })],
             is_anon: false,
         };
 
-        assert_eq!(expected_ast.body.unwrap(), actual_ast.body.unwrap());
+        let func = match actual_ast[0].clone() {
+            crate::parser::stmt::Stmt::Function(func) => func,
+            _ => panic!("Expected a function"),
+        };
+
+        assert_eq!(expected_ast.body, func.body);
     }
 
     #[test]
     fn parse_function_call() {
-        let mut scanner = Scanner::new("main(a, b);".to_string());
+        env_logger::init();
+        let src = "main(a, b);".to_string();
+        let mut scanner = Scanner::new(src.clone());
         let tokens = scanner.scan_tokens();
         let mut parser = Parser::new(tokens.to_vec());
         let actual_ast = parser.parse().unwrap();
+        trace!("AST for {}: \n{:#?}", src, actual_ast);
 
         let expected_ast = Function {
             prototype: Prototype {
                 name: ANONYMOUS_FUNCTION_NAME.to_string(),
                 args: vec![],
             },
-            body: Some(vec![Expr::FnCall {
+            body: vec![Expr::FnCall {
                 fn_name: "main".to_string(),
                 args: vec![
-                    Expr::Variable("a".to_string()),
-                    Expr::Variable("b".to_string()),
+                    Expr::Variable(Token {
+                        kind: TokenKind::Identifier("a".to_string()),
+                        lexeme: "a".to_string(),
+                        loc: Location { col: 6, line: 1 },
+                    }),
+                    Expr::Variable(Token {
+                        kind: TokenKind::Identifier("b".to_string()),
+                        lexeme: "b".to_string(),
+                        loc: Location { col: 9, line: 1 },
+                    }),
                 ],
-            }]),
+            }],
             is_anon: true,
         };
 
-        assert_eq!(expected_ast.body.unwrap(), actual_ast.body.unwrap());
+        let func = match actual_ast[0].clone() {
+            crate::parser::stmt::Stmt::Function(func) => func,
+            _ => panic!("Expected a function"),
+        };
+
+        assert_eq!(expected_ast.body, func.body);
     }
 }

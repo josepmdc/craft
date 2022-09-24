@@ -9,13 +9,17 @@ use inkwell::{
     context::Context,
     module::Module,
     types::BasicMetadataTypeEnum,
-    values::{BasicValue, FloatValue, FunctionValue, PointerValue, BasicMetadataValueEnum},
+    values::{BasicMetadataValueEnum, BasicValue, FloatValue, FunctionValue, PointerValue},
     FloatPredicate,
 };
 
 use crate::{
-    lex::TokenType,
-    parser::parser::{BinaryExpr, Expr, Function, LiteralValue, Prototype, UnaryExpr},
+    lex::TokenKind,
+    parser::{
+        expr::{BinaryExpr, Expr, UnaryExpr},
+        parser::LiteralValue,
+        stmt::{Function, Prototype},
+    },
 };
 
 use self::error::CodegenError;
@@ -82,20 +86,18 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             self.variables.insert(proto.args[i].clone(), alloca);
         }
 
-        match &self.function.body {
-            Some(body) => {
-                let mut res = self.compile_expr(&body[0])?;
+        let body = &self.function.body;
+        if body.len() > 0 {
+            let mut res = self.compile_expr(&body[0])?;
 
-                for expr in body.iter().skip(1) {
-                    res = self.compile_expr(expr)?;
-                }
+            for expr in body.iter().skip(1) {
+                res = self.compile_expr(expr)?;
+            }
 
-                self.builder.build_return(Some(&res));
-            }
-            None => {
-                self.builder.build_return(None);
-                return Ok(function);
-            }
+            self.builder.build_return(Some(&res));
+        } else {
+            self.builder.build_return(None);
+            return Ok(function);
         }
 
         if function.verify(true) {
@@ -135,7 +137,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             Expr::Literal { value } => self.compile_literal(value),
             Expr::Binary(expr) => self.compile_binary(expr),
             Expr::Unary(expr) => self.compile_unary(expr),
-            Expr::Variable(name) => self.compile_variable(name.as_str()),
+            Expr::Variable(var) => self.compile_variable(var.lexeme.as_str()),
             Expr::FnCall { fn_name, args } => self.compile_fn_call(fn_name, args),
         }
     }
@@ -185,12 +187,12 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         let lhs = self.compile_expr(&*expr.left)?;
         let rhs = self.compile_expr(&*expr.right)?;
 
-        match expr.operator.type_ {
-            TokenType::Plus => Ok(self.builder.build_float_add(lhs, rhs, "addtmp")),
-            TokenType::Minus => Ok(self.builder.build_float_sub(lhs, rhs, "subtmp")),
-            TokenType::Star => Ok(self.builder.build_float_mul(lhs, rhs, "multmp")),
-            TokenType::Slash => Ok(self.builder.build_float_div(lhs, rhs, "divtmp")),
-            TokenType::Less => Ok({
+        match expr.operator.kind {
+            TokenKind::Plus => Ok(self.builder.build_float_add(lhs, rhs, "addtmp")),
+            TokenKind::Minus => Ok(self.builder.build_float_sub(lhs, rhs, "subtmp")),
+            TokenKind::Star => Ok(self.builder.build_float_mul(lhs, rhs, "multmp")),
+            TokenKind::Slash => Ok(self.builder.build_float_div(lhs, rhs, "divtmp")),
+            TokenKind::Less => Ok({
                 let cmp = self
                     .builder
                     .build_float_compare(FloatPredicate::ULT, lhs, rhs, "cmptmp");
@@ -198,7 +200,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                 self.builder
                     .build_unsigned_int_to_float(cmp, self.context.f64_type(), "booltmp")
             }),
-            TokenType::Greater => Ok({
+            TokenKind::Greater => Ok({
                 let cmp = self
                     .builder
                     .build_float_compare(FloatPredicate::ULT, rhs, lhs, "cmptmp");
