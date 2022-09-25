@@ -1,22 +1,6 @@
 use crate::lex::{Token, TokenKind};
 
-use super::{
-    expr::Expr,
-    parser::{ParseResult, Parser},
-};
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Prototype {
-    pub name: String,
-    pub args: Vec<String>,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct Function {
-    pub prototype: Prototype,
-    pub body: Vec<Expr>,
-    pub is_anon: bool,
-}
+use super::{error::ParseError, expr::Expr, func::Function, ParseResult, Parser};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Stmt {
@@ -39,7 +23,7 @@ impl Parser {
 
     fn parse_expr_stmt(&mut self) -> ParseResult<Stmt> {
         let expr = self.parse_expr()?;
-
+        self.consume(TokenKind::Semicolon, ParseError::MissingSemicolon())?;
         Ok(Stmt::Expr(expr))
     }
 }

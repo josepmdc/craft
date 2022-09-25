@@ -1,11 +1,13 @@
 use crate::{
     lex::{Token, TokenKind},
-    parser::error::ParseError,
+    parser::error::{self, ParseError},
+    PROGRAM_STARTING_POINT,
 };
 
 use super::{
-    parser::*,
-    stmt::{Function, Prototype, Stmt},
+    func::{Function, Prototype},
+    stmt::Stmt,
+    LiteralValue, ParseResult, Parser,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -35,7 +37,7 @@ impl Parser {
         match self.parse_expr() {
             Ok(expr) => Ok(Stmt::Function(Function {
                 prototype: Prototype {
-                    name: ANONYMOUS_FUNCTION_NAME.to_string(),
+                    name: PROGRAM_STARTING_POINT.to_string(),
                     args: vec![],
                 },
                 body: vec![expr],
@@ -179,13 +181,14 @@ impl Parser {
                     let var = self.current().clone();
                     self.advance()?;
                     Expr::Variable(var)
-                },
+                }
             },
             _ => {
                 let token = self.current();
-                return Err(
-                    self.report_error(token, ParseError::UnexpectedToken(token.lexeme.clone()))
-                );
+                return Err(error::report(
+                    token,
+                    ParseError::UnexpectedToken(token.lexeme.clone()),
+                ));
             }
         };
 

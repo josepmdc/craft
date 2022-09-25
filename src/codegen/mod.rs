@@ -17,8 +17,7 @@ use crate::{
     lex::TokenKind,
     parser::{
         expr::{BinaryExpr, Expr, UnaryExpr},
-        parser::LiteralValue,
-        stmt::{Function, Prototype},
+        func::{Function, Prototype}, LiteralValue,
     },
 };
 
