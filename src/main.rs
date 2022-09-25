@@ -11,9 +11,12 @@ use std::{
 use error::CompilerError;
 use inkwell::{context::Context, module::Module, OptimizationLevel};
 use lex::Scanner;
-use parser::func::Function;
+use parser::stmt::Function;
 
-use crate::{codegen::Compiler, parser::{stmt::Stmt, Parser}};
+use crate::{
+    codegen::Compiler,
+    parser::{stmt::{Stmt, Prototype}, Parser},
+};
 
 #[macro_use]
 extern crate log;
@@ -57,7 +60,7 @@ fn run_repl() {
         }
 
         if let Err(err) = run(input) {
-            println!("{}", err);
+            error!("{}", err);
         }
     }
 }
@@ -68,12 +71,22 @@ fn run(source: String) -> Result<(), CompilerError> {
     let tokens = scanner.scan_tokens();
     let mut parser = Parser::new(tokens.to_vec());
     let func = parser.parse()?;
+
     // TODO This is only for testing, it will be properly implemented later
     let func = match &func[0] {
-        Stmt::Function(func) => func,
-        _ => panic!("Expected a function"),
+        Stmt::Function(func) => func.clone(),
+        Stmt::Expr(expr) => Function {
+            prototype: Prototype {
+                name: PROGRAM_STARTING_POINT.to_string(),
+                args: vec![],
+            },
+            body: vec![Stmt::Expr(expr.clone())],
+            is_anon: true,
+        },
+        _ => panic!("Unexpected statement"),
     };
-    compile(func.clone())?;
+
+    compile(func)?;
     Ok(())
 }
 

@@ -17,7 +17,8 @@ use crate::{
     lex::TokenKind,
     parser::{
         expr::{BinaryExpr, Expr, UnaryExpr},
-        func::{Function, Prototype}, LiteralValue,
+        stmt::{Function, Prototype, Stmt},
+        LiteralValue,
     },
 };
 
@@ -87,10 +88,10 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
 
         let body = &self.function.body;
         if body.len() > 0 {
-            let mut res = self.compile_expr(&body[0])?;
+            let mut res = self.compile_stmt(&body[0])?;
 
-            for expr in body.iter().skip(1) {
-                res = self.compile_expr(expr)?;
+            for stmt in body.iter().skip(1) {
+                res = self.compile_stmt(stmt)?;
             }
 
             self.builder.build_return(Some(&res));
@@ -129,6 +130,18 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         }
 
         Ok(fn_val)
+    }
+
+    fn compile_stmt(&self, stmt: &Stmt) -> CodegenResult<FloatValue<'ctx>> {
+        let stmt = match stmt {
+            Stmt::Var {
+                token: name,
+                initializer,
+            } => todo!(),
+            Stmt::Expr(expr) => self.compile_expr(expr)?,
+            _ => todo!(),
+        };
+        Ok(stmt)
     }
 
     fn compile_expr(&self, expr: &Expr) -> CodegenResult<FloatValue<'ctx>> {

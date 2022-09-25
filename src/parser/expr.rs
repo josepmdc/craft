@@ -1,14 +1,9 @@
 use crate::{
     lex::{Token, TokenKind},
     parser::error::{self, ParseError},
-    PROGRAM_STARTING_POINT,
 };
 
-use super::{
-    func::{Function, Prototype},
-    stmt::Stmt,
-    LiteralValue, ParseResult, Parser,
-};
+use super::{stmt::Stmt, LiteralValue, ParseResult, Parser};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct BinaryExpr {
@@ -35,14 +30,7 @@ pub enum Expr {
 impl Parser {
     pub fn parse_toplevel_expr(&mut self) -> ParseResult<Stmt> {
         match self.parse_expr() {
-            Ok(expr) => Ok(Stmt::Function(Function {
-                prototype: Prototype {
-                    name: PROGRAM_STARTING_POINT.to_string(),
-                    args: vec![],
-                },
-                body: vec![expr],
-                is_anon: true,
-            })),
+            Ok(expr) => Ok(Stmt::Expr(expr)),
             Err(err) => Err(err),
         }
     }
@@ -202,6 +190,47 @@ impl Parser {
         let expr = self.parse_expr()?;
         self.consume(TokenKind::RightParen, ParseError::MissingRightParen())?;
         trace!("Parsed grouping: {:#?}", expr);
+        Ok(expr)
+    }
+
+    pub fn parse_fn_call(&mut self, name: String) -> ParseResult<Expr> {
+        trace!("Parsing fn call");
+        self.advance()?; // Skip opening '('
+
+        if let TokenKind::RightParen = self.current().kind {
+            return Ok(Expr::FnCall {
+                fn_name: name,
+                args: vec![],
+            });
+        }
+
+        let mut args = vec![];
+
+        loop {
+            args.push(self.parse_expr()?);
+
+            match self.current().kind {
+                TokenKind::Comma => self.advance()?,
+                TokenKind::RightParen => {
+                    self.advance()?;
+                    break;
+                }
+                _ => {
+                    debug!("Expected comma or RightParen, found: {:#?}", self.current());
+                    return Err(ParseError::MissingCommaOrRightParen());
+                }
+            }
+        }
+
+        self.consume(TokenKind::Semicolon, ParseError::MissingSemicolon())?;
+
+        let expr = Expr::FnCall {
+            fn_name: name,
+            args,
+        };
+
+        trace!("Parsed fn call: {:#?}", expr);
+
         Ok(expr)
     }
 }
