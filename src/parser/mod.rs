@@ -1,6 +1,5 @@
 pub mod error;
 pub mod expr;
-pub mod func;
 pub mod stmt;
 
 use crate::lex::{Token, TokenKind};
@@ -65,7 +64,7 @@ impl Parser {
         }
     }
 
-    fn advance(&mut self) -> ParseResult<()> {
+    fn advance(&mut self) -> ParseResult<&Token> {
         if self.is_at_end() {
             return Err(ParseError::UnexpectedEndOfSource());
         }
@@ -77,7 +76,7 @@ impl Parser {
         );
 
         self.current_index += 1;
-        Ok(())
+        Ok(self.previous())
     }
 
     fn current(&self) -> &Token {

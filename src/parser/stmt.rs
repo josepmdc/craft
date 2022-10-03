@@ -27,10 +27,10 @@ impl Parser {
         self.advance()?;
         let stmt = match &self.current().kind {
             TokenKind::Identifier(_) => {
-                self.advance()?;
+                let identifier = self.advance()?.clone();
                 self.consume(TokenKind::Equal, ParseError::MissingLeftParen())?;
                 Stmt::Var {
-                    token: self.current().clone(),
+                    token: identifier,
                     initializer: self.parse_expr()?,
                 }
             }
@@ -96,7 +96,7 @@ impl Parser {
         match self.current().kind {
             TokenKind::LeftParen => self.advance()?,
             _ => return Err(ParseError::MissingLeftParen()),
-        }
+        };
 
         if self.current().kind == TokenKind::RightParen {
             self.advance()?;
@@ -129,14 +129,12 @@ impl Parser {
                     self.advance()?;
                     break;
                 }
-                TokenKind::Comma => {
-                    self.advance()?;
-                }
-                _ => {
-                    return Err(ParseError::PrototypeMissingRightParenOrComma());
-                }
+                TokenKind::Comma => self.advance()?,
+                _ => return Err(ParseError::PrototypeMissingRightParenOrComma()),
             };
         }
+
+        trace!("Parsed args: {:#?}", args);
 
         Ok(args)
     }

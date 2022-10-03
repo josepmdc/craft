@@ -219,7 +219,7 @@ impl Parser {
                     debug!("Expected comma or RightParen, found: {:#?}", self.current());
                     return Err(ParseError::MissingCommaOrRightParen());
                 }
-            }
+            };
         }
 
         self.consume(TokenKind::Semicolon, ParseError::MissingSemicolon())?;

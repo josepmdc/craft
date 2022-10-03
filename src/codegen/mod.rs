@@ -1,5 +1,3 @@
-#![allow(dead_code, unused_variables)]
-
 pub mod error;
 
 use std::collections::HashMap;
@@ -86,19 +84,10 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             self.variables.insert(proto.args[i].clone(), alloca);
         }
 
-        let body = &self.function.body;
-        if body.len() > 0 {
-            let mut res = self.compile_stmt(&body[0])?;
-
-            for stmt in body.iter().skip(1) {
-                res = self.compile_stmt(stmt)?;
-            }
-
-            self.builder.build_return(Some(&res));
-        } else {
-            self.builder.build_return(None);
-            return Ok(function);
-        }
+        match self.compile_body(&self.function.body)? {
+            Some(ret) => self.builder.build_return(Some(&ret)),
+            None => self.builder.build_return(None),
+        };
 
         if function.verify(true) {
             Ok(function)
@@ -108,6 +97,14 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             }
             Err(CodegenError::InvalidGeneratedFunction())
         }
+    }
+
+    fn compile_body(&mut self, body: &Vec<Stmt>) -> CodegenResult<Option<FloatValue<'ctx>>> {
+        let mut ret = None;
+        for stmt in body.iter() {
+            ret = self.compile_stmt(stmt)?;
+        }
+        Ok(ret)
     }
 
     fn compile_prototype(&self, proto: &Prototype) -> CodegenResult<FunctionValue<'ctx>> {
@@ -132,16 +129,25 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         Ok(fn_val)
     }
 
-    fn compile_stmt(&self, stmt: &Stmt) -> CodegenResult<FloatValue<'ctx>> {
-        let stmt = match stmt {
-            Stmt::Var {
-                token: name,
-                initializer,
-            } => todo!(),
-            Stmt::Expr(expr) => self.compile_expr(expr)?,
+    fn compile_stmt(&mut self, stmt: &Stmt) -> CodegenResult<Option<FloatValue<'ctx>>> {
+        match stmt {
+            Stmt::Var { token, initializer } => {
+                self.compile_var_declaration(token.lexeme.clone(), initializer)?;
+                Ok(None)
+            }
+            Stmt::Expr(expr) => Ok(Some(self.compile_expr(expr)?)),
             _ => todo!(),
-        };
-        Ok(stmt)
+        }
+    }
+
+    fn compile_var_declaration(&mut self, name: String, initializer: &Expr) -> CodegenResult<()> {
+        let alloca = self.create_entry_block_alloca(name.as_str());
+        let compiled_expr = self.compile_expr(initializer)?;
+        self.builder.build_store(alloca, compiled_expr);
+        // TODO Remove variables with same name if exists from another context
+        self.variables.insert(name, alloca);
+        // TODO Add variables previously removed
+        Ok(())
     }
 
     fn compile_expr(&self, expr: &Expr) -> CodegenResult<FloatValue<'ctx>> {
@@ -224,7 +230,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         }
     }
 
-    fn compile_unary(&self, expr: &UnaryExpr) -> CodegenResult<FloatValue<'ctx>> {
+    fn compile_unary(&self, _expr: &UnaryExpr) -> CodegenResult<FloatValue<'ctx>> {
         todo!()
     }
 

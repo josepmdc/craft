@@ -83,7 +83,7 @@ fn run(source: String) -> Result<(), CompilerError> {
             body: vec![Stmt::Expr(expr.clone())],
             is_anon: true,
         },
-        _ => panic!("Unexpected statement"),
+        _ => panic!("Unexpected statement, {:#?}", func[0]),
     };
 
     compile(func)?;
