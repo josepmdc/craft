@@ -144,9 +144,8 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         let alloca = self.create_entry_block_alloca(name.as_str());
         let compiled_expr = self.compile_expr(initializer)?;
         self.builder.build_store(alloca, compiled_expr);
-        // TODO Remove variables with same name if exists from another context
+        self.variables.remove(&name);
         self.variables.insert(name, alloca);
-        // TODO Add variables previously removed
         Ok(())
     }
 
