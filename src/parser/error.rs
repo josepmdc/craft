@@ -1,5 +1,7 @@
 use thiserror::Error;
 
+use crate::{error, lex::Token};
+
 #[derive(Error, Debug)]
 pub enum ParseError {
     #[error("Expected ')' after expression")]
@@ -20,4 +22,9 @@ pub enum ParseError {
     UnexpectedEndOfSource(),
     #[error("Expected identifier in prototype declaration")]
     PrototypeMissingIdentifier(),
+}
+
+pub fn report(token: &Token, error: ParseError) -> ParseError {
+    error::report(token.loc.line, token.loc.col, error.to_string());
+    error
 }

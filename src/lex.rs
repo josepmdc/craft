@@ -15,7 +15,7 @@ impl Location {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub enum TokenType {
+pub enum TokenKind {
     EOF,
     Fn,
     Semicolon,
@@ -41,24 +41,25 @@ pub enum TokenType {
     LessEqual,
     True,
     False,
+    VarDeclaration,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Token {
-    pub type_: TokenType,
+    pub kind: TokenKind,
     pub lexeme: String,
     pub loc: Location,
 }
 
 impl fmt::Display for Token {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self.type_ {
-            TokenType::String { literal } => write!(
+        match &self.kind {
+            TokenKind::String { literal } => write!(
                 f,
                 "{}:{} => {:?} {:?}",
                 self.loc.line, self.loc.col, self.lexeme, literal
             ),
-            TokenType::Number { literal } => write!(
+            TokenKind::Number { literal } => write!(
                 f,
                 "{}:{} => {:?} {:?}",
                 self.loc.line, self.loc.col, self.lexeme, literal
@@ -66,16 +67,16 @@ impl fmt::Display for Token {
             _ => write!(
                 f,
                 "{}:{} => {:?} {:?}",
-                self.loc.line, self.loc.col, self.type_, self.lexeme
+                self.loc.line, self.loc.col, self.kind, self.lexeme
             ),
         }
     }
 }
 
 impl Token {
-    pub fn new(kind: TokenType, value: &str, loc: Location) -> Self {
+    pub fn new(kind: TokenKind, value: &str, loc: Location) -> Self {
         Self {
-            type_: kind,
+            kind,
             lexeme: value.to_string(),
             loc,
         }
@@ -109,7 +110,7 @@ impl Scanner {
             self.scan_token();
         }
         self.tokens.push(Token::new(
-            TokenType::EOF,
+            TokenKind::EOF,
             "",
             Location::new(self.col, self.line),
         ));
@@ -118,16 +119,17 @@ impl Scanner {
 
     fn scan_token(&mut self) {
         match self.advance() {
-            ';' => self.add_token(TokenType::Semicolon),
-            '(' => self.add_token(TokenType::LeftParen),
-            ')' => self.add_token(TokenType::RightParen),
-            '{' => self.add_token(TokenType::LeftBrace),
-            '}' => self.add_token(TokenType::RightBrace),
-            ',' => self.add_token(TokenType::Comma),
-            '+' => self.add_token(TokenType::Plus),
-            '-' => self.add_token(TokenType::Minus),
-            '*' => self.add_token(TokenType::Star),
-            '/' => self.add_token(TokenType::Slash),
+            ';' => self.add_token(TokenKind::Semicolon),
+            '(' => self.add_token(TokenKind::LeftParen),
+            ')' => self.add_token(TokenKind::RightParen),
+            '{' => self.add_token(TokenKind::LeftBrace),
+            '}' => self.add_token(TokenKind::RightBrace),
+            ',' => self.add_token(TokenKind::Comma),
+            '+' => self.add_token(TokenKind::Plus),
+            '-' => self.add_token(TokenKind::Minus),
+            '*' => self.add_token(TokenKind::Star),
+            '/' => self.add_token(TokenKind::Slash),
+            '=' => self.add_token(TokenKind::Equal),
             '"' => self.add_string(),
             ' ' | '\r' | '\t' => (),
             '\n' => self.add_new_line(),
@@ -143,14 +145,17 @@ impl Scanner {
         };
     }
 
-    fn match_keyword(word: &str) -> Option<TokenType> {
+    fn match_keyword(word: &str) -> Option<TokenKind> {
         match word {
-            "fn" => Some(TokenType::Fn),
+            "fn" => Some(TokenKind::Fn),
+            "let" => Some(TokenKind::VarDeclaration),
+            "true" => Some(TokenKind::True),
+            "false" => Some(TokenKind::False),
             _ => None,
         }
     }
 
-    fn add_token(&mut self, kind: TokenType) {
+    fn add_token(&mut self, kind: TokenKind) {
         let value = self.source.get(self.start..self.current_idx).unwrap();
         self.tokens.push(Token::new(
             kind,
@@ -181,7 +186,7 @@ impl Scanner {
             .parse()
             .expect("[Number] Could not parse number");
 
-        self.add_token(TokenType::Number { literal });
+        self.add_token(TokenKind::Number { literal });
     }
 
     fn add_string(&mut self) {
@@ -205,7 +210,7 @@ impl Scanner {
             .expect("[String] Could not get substring")
             .to_string();
 
-        self.add_token(TokenType::String { literal });
+        self.add_token(TokenKind::String { literal });
     }
 
     fn add_identifier(&mut self) {
@@ -218,7 +223,7 @@ impl Scanner {
             .get(self.start..self.current_idx)
             .expect("Could not get identifier");
 
-        self.add_token(Scanner::match_keyword(id).unwrap_or(TokenType::Identifier(id.to_string())));
+        self.add_token(Scanner::match_keyword(id).unwrap_or(TokenKind::Identifier(id.to_string())));
     }
 
     fn add_new_line(&mut self) {
@@ -235,7 +240,7 @@ impl Scanner {
             .expect("Unexpected end of source")
     }
 
-    fn current(&self) -> char {
+    pub fn current(&self) -> char {
         self.source.chars().nth(self.current_idx).unwrap_or('\0')
     }
 

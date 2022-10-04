@@ -9,14 +9,22 @@ use std::{
 };
 
 use error::CompilerError;
-use lex::Scanner;
 use inkwell::{context::Context, module::Module, OptimizationLevel};
-use parser::parser::{Function, Parser, ANONYMOUS_FUNCTION_NAME};
+use lex::Scanner;
+use parser::stmt::Function;
 
-use crate::codegen::Compiler;
+use crate::{
+    codegen::Compiler,
+    parser::{
+        stmt::{Prototype, Stmt},
+        Parser,
+    },
+};
 
 #[macro_use]
 extern crate log;
+
+pub const PROGRAM_STARTING_POINT: &str = "main";
 
 fn main() {
     env_logger::init();
@@ -53,9 +61,9 @@ fn run_repl() {
         } else if input.chars().all(char::is_whitespace) {
             continue;
         }
-        
+
         if let Err(err) = run(input) {
-            println!("{}", err);
+            error!("{}", err);
         }
     }
 }
@@ -65,8 +73,24 @@ fn run(source: String) -> Result<(), CompilerError> {
     let mut scanner = Scanner::new(source);
     let tokens = scanner.scan_tokens();
     let mut parser = Parser::new(tokens.to_vec());
-    let func = parser.parse()?;
-    compile(func)?;
+    let ast = parser.parse()?;
+
+    for func in ast {
+        let func = match func {
+            Stmt::Function(func) => func.clone(),
+            Stmt::Expr(expr) => Function {
+                prototype: Prototype {
+                    name: PROGRAM_STARTING_POINT.to_string(),
+                    args: vec![],
+                },
+                body: vec![Stmt::Expr(expr.clone())],
+                is_anon: true,
+            },
+            _ => panic!("Unexpected statement, {:#?}", func),
+        };
+        compile(func)?;
+    }
+
     Ok(())
 }
 
@@ -94,7 +118,7 @@ fn run_jit(module: &Module) {
         .unwrap();
 
     let maybe_fn =
-        unsafe { ee.get_function::<unsafe extern "C" fn() -> f64>(ANONYMOUS_FUNCTION_NAME) };
+        unsafe { ee.get_function::<unsafe extern "C" fn() -> f64>(PROGRAM_STARTING_POINT) };
 
     let compiled_fn = match maybe_fn {
         Ok(f) => f,
