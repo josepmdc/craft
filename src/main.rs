@@ -15,7 +15,10 @@ use parser::stmt::Function;
 
 use crate::{
     codegen::Compiler,
-    parser::{stmt::{Stmt, Prototype}, Parser},
+    parser::{
+        stmt::{Prototype, Stmt},
+        Parser,
+    },
 };
 
 #[macro_use]
@@ -70,23 +73,24 @@ fn run(source: String) -> Result<(), CompilerError> {
     let mut scanner = Scanner::new(source);
     let tokens = scanner.scan_tokens();
     let mut parser = Parser::new(tokens.to_vec());
-    let func = parser.parse()?;
+    let ast = parser.parse()?;
 
-    // TODO This is only for testing, it will be properly implemented later
-    let func = match &func[0] {
-        Stmt::Function(func) => func.clone(),
-        Stmt::Expr(expr) => Function {
-            prototype: Prototype {
-                name: PROGRAM_STARTING_POINT.to_string(),
-                args: vec![],
+    for func in ast {
+        let func = match func {
+            Stmt::Function(func) => func.clone(),
+            Stmt::Expr(expr) => Function {
+                prototype: Prototype {
+                    name: PROGRAM_STARTING_POINT.to_string(),
+                    args: vec![],
+                },
+                body: vec![Stmt::Expr(expr.clone())],
+                is_anon: true,
             },
-            body: vec![Stmt::Expr(expr.clone())],
-            is_anon: true,
-        },
-        _ => panic!("Unexpected statement, {:#?}", func[0]),
-    };
+            _ => panic!("Unexpected statement, {:#?}", func),
+        };
+        compile(func)?;
+    }
 
-    compile(func)?;
     Ok(())
 }
 
