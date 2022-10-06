@@ -66,6 +66,13 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         builder.build_alloca(self.context.f64_type(), name)
     }
 
+    fn fn_value(&self, stmt_name: String) -> CodegenResult<FunctionValue<'ctx>> {
+        match self.fn_value_opt {
+            Some(fn_value) => Ok(fn_value),
+            None => Err(CodegenError::OutsideOfFuncion(stmt_name)),
+        }
+    }
+
     fn compile_fn(&mut self) -> CodegenResult<FunctionValue<'ctx>> {
         let proto = &self.function.prototype;
         let function = self.compile_prototype(proto)?;
@@ -156,6 +163,9 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             Expr::Unary(expr) => self.compile_unary(expr),
             Expr::Variable(var) => self.compile_variable(var.lexeme.as_str()),
             Expr::FnCall { fn_name, args } => self.compile_fn_call(fn_name, args),
+            Expr::Conditional { cond, then, else_ } => {
+                self.compile_conditional(*cond.clone(), *then.clone(), *else_.clone())
+            }
         }
     }
 
@@ -240,5 +250,48 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                 name.to_string(),
             )),
         }
+    }
+
+    fn compile_conditional(
+        &self,
+        cond: Expr,
+        then: Expr,
+        else_: Expr,
+    ) -> CodegenResult<FloatValue<'ctx>> {
+        let cond = self.compile_expr(&cond)?;
+        let cond = self.builder.build_float_compare(
+            FloatPredicate::ONE,
+            cond,
+            self.context.f64_type().const_float(0.0),
+            "ifcond",
+        );
+
+        let parent = self.fn_value("Conditional".to_string())?;
+        let then_bb = self.context.append_basic_block(parent, "then");
+        let else_bb = self.context.append_basic_block(parent, "else");
+        let cont_bb = self.context.append_basic_block(parent, "ifcont");
+
+        self.builder
+            .build_conditional_branch(cond, then_bb, else_bb);
+
+        self.builder.position_at_end(then_bb);
+        let then_val = self.compile_expr(&then)?;
+        self.builder.build_unconditional_branch(cont_bb);
+
+        let then_bb = self.builder.get_insert_block().unwrap();
+
+        self.builder.position_at_end(else_bb);
+        let else_val = self.compile_expr(&else_)?;
+        self.builder.build_unconditional_branch(cont_bb);
+
+        let else_bb = self.builder.get_insert_block().unwrap();
+
+        self.builder.position_at_end(cont_bb);
+
+        let phi = self.builder.build_phi(self.context.f64_type(), "iftmp");
+
+        phi.add_incoming(&[(&then_val, then_bb), (&else_val, else_bb)]);
+
+        Ok(phi.as_basic_value().into_float_value())
     }
 }
