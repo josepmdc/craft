@@ -22,9 +22,19 @@ pub struct UnaryExpr {
 pub enum Expr {
     Binary(BinaryExpr),
     Unary(UnaryExpr),
-    Literal { value: LiteralValue },
+    Literal {
+        value: LiteralValue,
+    },
     Variable(Token),
-    FnCall { fn_name: String, args: Vec<Expr> },
+    FnCall {
+        fn_name: String,
+        args: Vec<Expr>,
+    },
+    Conditional {
+        cond: Box<Expr>,
+        then: Box<Expr>,
+        else_: Box<Expr>,
+    },
 }
 
 impl Parser {
@@ -171,6 +181,7 @@ impl Parser {
                     Expr::Variable(var)
                 }
             },
+            TokenKind::If => self.parse_if()?,
             _ => {
                 let token = self.current();
                 return Err(error::report(
@@ -182,6 +193,29 @@ impl Parser {
 
         trace!("Parsed primary: {:#?}", expr);
         Ok(expr)
+    }
+
+    pub fn parse_if(&mut self) -> ParseResult<Expr> {
+        trace!("Parsing if");
+        self.advance()?; // skip 'if' token
+
+        let cond = self.parse_expr()?;
+        self.consume(TokenKind::LeftBrace, ParseError::MissingLeftBrace())?;
+        let then = self.parse_expr()?;
+        self.consume(TokenKind::RightBrace, ParseError::MissingRightBrace())?;
+
+        self.consume(TokenKind::Else, ParseError::MissingElse())?;
+        self.consume(TokenKind::LeftBrace, ParseError::MissingLeftBrace())?;
+        let else_ = self.parse_expr()?;
+        self.consume(TokenKind::RightBrace, ParseError::MissingRightBrace())?;
+
+        let conditional = Expr::Conditional {
+            cond: Box::new(cond),
+            then: Box::new(then),
+            else_: Box::new(else_),
+        };
+        trace!("Parsed if expr {:#?}", conditional);
+        Ok(conditional)
     }
 
     fn parse_grouping(&mut self) -> ParseResult<Expr> {

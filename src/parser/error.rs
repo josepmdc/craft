@@ -10,10 +10,14 @@ pub enum ParseError {
     MissingLeftParen(),
     #[error("Expected '{{' after expression")]
     MissingLeftBrace(),
+    #[error("Expected '}}' after expression")]
+    MissingRightBrace(),
     #[error("Expected ';' after expression")]
     MissingSemicolon(),
     #[error("Expected ',' or ')' after expression")]
     MissingCommaOrRightParen(),
+    #[error("Expected else")]
+    MissingElse(),
     #[error("Expected ')' or ',' after argument declaration")]
     PrototypeMissingRightParenOrComma(),
     #[error("Unexpected token '{0}'")]

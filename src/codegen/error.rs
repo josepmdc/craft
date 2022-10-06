@@ -12,5 +12,7 @@ pub enum CodegenError {
     InvalidCall(String),
     #[error("Unkown function {0}")]
     UnkownFunction(String),
+    #[error("{0} must be declared inside a function")]
+    OutsideOfFuncion(String),
 }
 
