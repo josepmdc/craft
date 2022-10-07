@@ -75,6 +75,10 @@ fn run(source: String) -> Result<(), CompilerError> {
     let mut parser = Parser::new(tokens.to_vec());
     let ast = parser.parse()?;
 
+    let context = Context::create();
+    let module = context.create_module("repl");
+    let builder = context.create_builder();
+
     for func in ast {
         let func = match func {
             Stmt::Function(func) => func.clone(),
@@ -88,27 +92,18 @@ fn run(source: String) -> Result<(), CompilerError> {
             },
             _ => panic!("Unexpected statement, {:#?}", func),
         };
-        compile(func)?;
-    }
 
-    Ok(())
-}
-
-fn compile(func: Function) -> Result<(), CompilerError> {
-    let context = Context::create();
-    let module = context.create_module("repl");
-    let builder = context.create_builder();
-
-    match Compiler::compile(&context, &builder, &module, &func) {
-        Ok(function) => {
-            println!("--------------------------------");
-            function.print_to_stderr();
-            println!("--------------------------------");
+        match Compiler::compile(&context, &builder, &module, &func) {
+            Ok(function) => {
+                println!("--------------------------------");
+                function.print_to_stderr();
+                println!("--------------------------------");
+            }
+            Err(err) => return Err(CompilerError::CodegenError(err)),
         }
-        Err(err) => return Err(CompilerError::CodegenError(err)),
     }
-
     run_jit(&module);
+
     Ok(())
 }
 
