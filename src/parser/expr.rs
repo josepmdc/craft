@@ -232,6 +232,7 @@ impl Parser {
         self.advance()?; // Skip opening '('
 
         if let TokenKind::RightParen = self.current().kind {
+            self.advance()?; // Skip closing ')'
             return Ok(Expr::FnCall {
                 fn_name: name,
                 args: vec![],
@@ -255,8 +256,6 @@ impl Parser {
                 }
             };
         }
-
-        self.consume(TokenKind::Semicolon, ParseError::MissingSemicolon())?;
 
         let expr = Expr::FnCall {
             fn_name: name,

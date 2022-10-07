@@ -132,6 +132,8 @@ impl Scanner {
             '*' => self.add_token(TokenKind::Star),
             '/' => self.add_token(TokenKind::Slash),
             '=' => self.add_token(TokenKind::Equal),
+            '<' => self.add_token(TokenKind::Less),
+            '>' => self.add_token(TokenKind::Greater),
             '"' => self.add_string(),
             ' ' | '\r' | '\t' => (),
             '\n' => self.add_new_line(),
