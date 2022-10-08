@@ -1,0 +1,68 @@
+<lowercase>     ::= "a" | ... | "z"
+<uppercase>     ::= "A" | ... | "Z"
+<letter>        ::= <lowercase> | <uppercase>
+<digit>         ::= "0" | ... | "9"
+
+<program>       ::= <fn> | <method> | <const> | <imports> | <interface>
+
+<fn>            ::= <prototype> <block>
+<params>        ::= "(" { <param> { , <param> } } ")"
+<param>         ::= <id>: <type>
+<prototype>     ::= fn <id> "(" <params> ")" <type>
+
+<method>        ::= [pub] [mut] fn "(" <custom_type> ")" <id> "(" <params> ")" <type> <block>
+
+<block>         ::= "{" { <stmt> } [ <expr> ] "}"
+
+<type>          ::= i32 | i64 | f32 | f64 | bool | string | <custom_type> | <array>
+<custom_type>   ::= <uppercase> { ( <lowercase> | <digit> ) }
+<array>         ::= "[" <type> "]"
+
+<interface>     ::= interface <id> "{" { <prototype> ; } "}"
+
+<struct>        ::= struct <id> { <implements> } "{" 
+                        { <member_var> }
+                        { [pub] [static] <prototype> <block> }
+                    "}"
+
+<member_var>    ::= <id> : type [ "{" [get [, set]] | [set] "}" ];
+
+<implements>    ::= : <id> { , <id> }
+
+<stmt>          ::= <var> | <fn> | <for> | <while> | <for_in> | <expr_stmt>
+<var>           ::= let <id> : <type> = <expr>;
+<id>            ::= letter { letter | digit | "_" }
+
+<const>         ::= const <uppercase> { <uppercase> | <digit> } = <expr>
+
+<imports>       ::= { import <id>; }
+
+<expr>          ::= <eq>
+<eq>            ::= <comparison> { ( != | == ) <comparison> }
+<comparison>    ::= <term> { ( > | >= | < | <= ) <term> }
+<term>          ::= <factor> { ( - | + ) <factor> }
+<factor>        ::= <unary> { ( / | * ) <unary> }
+<unary>         ::= ( ! | - ) <unary> | <primary>
+
+<primary>       ::= <number> 
+                    | <string>
+                    | true
+                    | false
+                    | "(" <expr> ")" 
+                    | <id> ( <assign> |  <fn_call> | <pipe> )
+                    | <if_expr>
+                    | <clojure>
+
+<assign>        ::= "=" <expr>
+<fn_call>       ::= "(" { (<id> | <expr>) { , (<id> | <expr>) } } ")"
+<pipe>          ::= |> <id> { |> <id> }
+
+<if_expr>       ::= if <expr> <block> [ else ( <if_expr> | <block> ) ]
+<clojure>       ::= | <params> | -> <block>
+
+<for>           ::= [<break_tag>] for let <id> = <expr> ; <comparison> ; <expr>
+<while>         ::= while <expr> <block>
+<for_in>        ::= [<break_tag>] for <id> in <id> <block>
+<expr_stmt>     ::= <expr> ;
+
+<break_tag>     ::= <id>:
