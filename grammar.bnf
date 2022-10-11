@@ -3,14 +3,20 @@
 <letter>        ::= <lowercase> | <uppercase>
 <digit>         ::= "0" | ... | "9"
 
-<program>       ::= <fn> | <method> | <const> | <imports> | <interface>
+<program>       ::= <fn> 
+                    | <method> 
+                    | <const> 
+                    | <global_var> 
+                    | <imports> 
+                    | <interface>
 
 <fn>            ::= <prototype> <block>
 <params>        ::= "(" { <param> { , <param> } } ")"
 <param>         ::= <id>: <type>
 <prototype>     ::= fn <id> "(" <params> ")" <type>
 
-<method>        ::= [pub] [mut] fn "(" <custom_type> ")" <id> "(" <params> ")" <type> <block>
+<method>        ::= [pub] [mut] fn "(" <custom_type> ")" <id> "(" <params> ")" <type>
+                    <block>
 
 <block>         ::= "{" { <stmt> } [ <expr> ] "}"
 
@@ -29,11 +35,21 @@
 
 <implements>    ::= : <id> { , <id> }
 
-<stmt>          ::= <var> | <fn> | <for> | <while> | <for_in> | <expr_stmt>
+<stmt>          ::= ( <var> 
+                    | <clojure> 
+                    | <for> 
+                    | <while> 
+                    | <for_in> 
+                    | <expr_stmt> ) ;
+
 <var>           ::= let <id> : <type> = <expr>;
 <id>            ::= letter { letter | digit | "_" }
 
-<const>         ::= const <uppercase> { <uppercase> | <digit> } = <expr>
+<const>         ::= const <uppercase> { <uppercase> | <digit> } = <number> 
+                    | <string>
+                    | true
+                    | false ;
+<global_var>    ::= let <uppercase> { <uppercase> | <digit> } = <expr> ;
 
 <imports>       ::= { import <id>; }
 
