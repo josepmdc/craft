@@ -161,11 +161,14 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             Expr::Literal { value } => self.compile_literal(value),
             Expr::Binary(expr) => self.compile_binary(expr),
             Expr::Unary(expr) => self.compile_unary(expr),
-            Expr::Variable(var) => self.compile_variable(var.lexeme.as_str()),
+            Expr::Variable(var) => self.compile_variable(var.as_str()),
             Expr::FnCall { fn_name, args } => self.compile_fn_call(fn_name, args),
             Expr::Conditional { cond, then, else_ } => {
                 self.compile_conditional(*cond.clone(), *then.clone(), *else_.clone())
             }
+            Expr::VariableAssignment { id, rhs } => todo!(),
+            Expr::Block { body, return_expr } => todo!(),
+
         }
     }
 

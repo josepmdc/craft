@@ -40,22 +40,22 @@ impl Parser {
         trace!("Parsing declaration. Current: {:#?}", self.current());
         let stmt = match self.current().kind {
             TokenKind::Fn => self.parse_fn()?,
-            TokenKind::VarDeclaration => self.parse_var_declaration()?,
             _ => self.parse_toplevel_expr()?,
         };
         Ok(stmt)
     }
 
     fn match_any<const L: usize>(&self, types: [TokenKind; L]) -> bool {
-        types.iter().any(|t| self.check_current_type(t.clone()))
+        types.iter().any(|t| self.current_is(t.clone()))
     }
 
-    fn check_current_type(&self, kind: TokenKind) -> bool {
+    fn current_is(&self, kind: TokenKind) -> bool {
         !self.is_at_end() && kind == self.current().kind
     }
 
     fn consume(&mut self, kind: TokenKind, error: ParseError) -> ParseResult<&Token> {
-        match self.check_current_type(kind) {
+        trace!("Consuming {:#?}", kind);
+        match self.current_is(kind) {
             true => {
                 self.advance()?;
                 Ok(self.previous())
@@ -206,7 +206,12 @@ mod tests {
     #[test]
     fn parse_function_definition() {
         env_logger::init();
-        let src = "fn main(a, b) { 2 + 2 }".to_string();
+        let src = r#"
+            fn main(a, b) {
+                2 + 2 
+            }
+        "#.to_string();
+
         let mut scanner = Scanner::new(src.clone());
         let tokens = scanner.scan_tokens();
         let mut parser = Parser::new(tokens.to_vec());
@@ -218,19 +223,20 @@ mod tests {
                 name: "main".to_string(),
                 args: vec!["a".to_string(), "b".to_string()],
             },
-            body: vec![Stmt::Expr(Expr::Binary(BinaryExpr {
+            body: vec![],
+            return_expr: Some(Box::new(Expr::Binary(BinaryExpr {
                 left: Box::new(Expr::Literal {
                     value: LiteralValue::Number(2.0),
                 }),
                 operator: Token {
                     kind: TokenKind::Plus,
                     lexeme: "+".to_string(),
-                    loc: Location { col: 19, line: 1 },
+                    loc: Location { col: 18, line: 3 },
                 },
                 right: Box::new(Expr::Literal {
                     value: LiteralValue::Number(2.0),
                 }),
-            }))],
+            }))),
             is_anon: false,
         };
 
@@ -254,16 +260,8 @@ mod tests {
         let expected_ast = Stmt::Expr(Expr::FnCall {
             fn_name: "main".to_string(),
             args: vec![
-                Expr::Variable(Token {
-                    kind: TokenKind::Identifier("a".to_string()),
-                    lexeme: "a".to_string(),
-                    loc: Location { col: 6, line: 1 },
-                }),
-                Expr::Variable(Token {
-                    kind: TokenKind::Identifier("b".to_string()),
-                    lexeme: "b".to_string(),
-                    loc: Location { col: 9, line: 1 },
-                }),
+                Expr::Variable("a".to_string()),
+                Expr::Variable("b".to_string()),
             ],
         });
 

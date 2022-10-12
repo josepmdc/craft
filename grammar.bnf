@@ -35,14 +35,14 @@
 
 <implements>    ::= : <id> { , <id> }
 
-<stmt>          ::= ( <var> 
+<stmt>          ::= ( <var_decl> 
                     | <clojure> 
                     | <for> 
                     | <while> 
                     | <for_in> 
                     | <expr_stmt> ) ;
 
-<var>           ::= let <id> : <type> = <expr>;
+<var_decl>      ::= let <id> : <type> = <expr>;
 <id>            ::= letter { letter | digit | "_" }
 
 <const>         ::= const <uppercase> { <uppercase> | <digit> } = <number> 
@@ -65,10 +65,11 @@
                     | true
                     | false
                     | "(" <expr> ")" 
-                    | <id> ( <assign> |  <fn_call> | <pipe> )
+                    | <id_expr>
                     | <if_expr>
                     | <clojure>
 
+<id_expr>       ::= <id> ( <assign> |  <fn_call> | <pipe> )
 <assign>        ::= "=" <expr>
 <fn_call>       ::= "(" { (<id> | <expr>) { , (<id> | <expr>) } } ")"
 <pipe>          ::= |> <id> { |> <id> }
