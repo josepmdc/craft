@@ -91,7 +91,9 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             self.variables.insert(proto.args[i].clone(), alloca);
         }
 
-        match self.compile_body(&self.function.body)? {
+        let return_expr = self.function.return_expr.clone().and_then(|x| Some(*x));
+
+        match self.compile_block(&self.function.body, return_expr)? {
             Some(ret) => self.builder.build_return(Some(&ret)),
             None => self.builder.build_return(None),
         };
@@ -104,14 +106,6 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             }
             Err(CodegenError::InvalidGeneratedFunction())
         }
-    }
-
-    fn compile_body(&mut self, body: &Vec<Stmt>) -> CodegenResult<Option<FloatValue<'ctx>>> {
-        let mut ret = None;
-        for stmt in body.iter() {
-            ret = self.compile_stmt(stmt)?;
-        }
-        Ok(ret)
     }
 
     fn compile_prototype(&self, proto: &Prototype) -> CodegenResult<FunctionValue<'ctx>> {
@@ -156,7 +150,17 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         Ok(())
     }
 
-    fn compile_expr(&self, expr: &Expr) -> CodegenResult<FloatValue<'ctx>> {
+    fn compile_var_assignment(&mut self, name: &String, rhs: &Expr) -> CodegenResult<FloatValue<'ctx>> {
+        let val = self.compile_expr(rhs)?;
+        let var = self
+            .variables
+            .get(name)
+            .ok_or(CodegenError::UndeclaredVariableOrOutOfScope(name.clone()))?;
+        self.builder.build_store(*var, val);
+        Ok(val)
+    }
+
+    fn compile_expr(&mut self, expr: &Expr) -> CodegenResult<FloatValue<'ctx>> {
         match expr {
             Expr::Literal { value } => self.compile_literal(value),
             Expr::Binary(expr) => self.compile_binary(expr),
@@ -166,14 +170,45 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             Expr::Conditional { cond, then, else_ } => {
                 self.compile_conditional(*cond.clone(), *then.clone(), *else_.clone())
             }
-            Expr::VariableAssignment { id, rhs } => todo!(),
-            Expr::Block { body, return_expr } => todo!(),
-
+            Expr::VariableAssignment { id, rhs } => self.compile_var_assignment(id, &*rhs),
+            Expr::Block { body, return_expr } => self.compile_expr_block(
+                body,
+                *return_expr.clone().ok_or(CodegenError::ExpectedReturnExpr())?,
+            ),
         }
     }
 
+    fn compile_expr_block(
+        &mut self,
+        body: &Vec<Stmt>,
+        return_expr: Expr,
+    ) -> CodegenResult<FloatValue<'ctx>> {
+        self.compile_body(body)?;
+        Ok(self.compile_expr(&return_expr)?)
+    }
+
+    fn compile_block(
+        &mut self,
+        body: &Vec<Stmt>,
+        return_expr: Option<Expr>,
+    ) -> CodegenResult<Option<FloatValue<'ctx>>> {
+        self.compile_body(body)?;
+        let compiled_return = match return_expr {
+            Some(expr) => Some(self.compile_expr(&expr)?),
+            None => None,
+        };
+        Ok(compiled_return)
+    }
+
+    fn compile_body(&mut self, body: &Vec<Stmt>) -> CodegenResult<()> {
+        for stmt in body.iter() {
+            self.compile_stmt(stmt)?;
+        }
+        Ok(())
+    }
+
     fn compile_fn_call(
-        &self,
+        &mut self,
         fn_name: &String,
         args: &Vec<Expr>,
     ) -> CodegenResult<FloatValue<'ctx>> {
@@ -213,7 +248,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         }
     }
 
-    fn compile_binary(&self, expr: &BinaryExpr) -> CodegenResult<FloatValue<'ctx>> {
+    fn compile_binary(&mut self, expr: &BinaryExpr) -> CodegenResult<FloatValue<'ctx>> {
         let lhs = self.compile_expr(&*expr.left)?;
         let rhs = self.compile_expr(&*expr.right)?;
 
@@ -256,7 +291,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
     }
 
     fn compile_conditional(
-        &self,
+        &mut self,
         cond: Expr,
         then: Expr,
         else_: Expr,

@@ -201,7 +201,7 @@ impl Parser {
                 let name = self.current().lexeme.clone();
                 self.advance()?;
                 Ok(Expr::Variable(name))
-            },
+            }
         }
     }
 
@@ -226,9 +226,7 @@ impl Parser {
         self.consume(TokenKind::Else, ParseError::MissingElse())?;
 
         let else_ = match self.current().kind {
-            TokenKind::LeftBrace => {
-                self.parse_block()?
-            }
+            TokenKind::LeftBrace => self.parse_block()?,
             TokenKind::If => self.parse_if()?,
             _ => {
                 return Err(ParseError::UnexpectedTokenVerbose {
@@ -312,7 +310,7 @@ impl Parser {
                 TokenKind::Semicolon => {
                     self.advance()?; // skip ;
                     body.push(stmt)
-                },
+                }
                 TokenKind::RightBrace => {
                     // if the last line of the block is an expression, it'll be the return
                     let expr = match stmt {
