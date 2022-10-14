@@ -19,11 +19,42 @@ pub struct Prototype {
 pub struct Function {
     pub prototype: Prototype,
     pub body: Vec<Stmt>,
+    pub return_expr: Option<Box<Expr>>,
     pub is_anon: bool,
 }
 
 impl Parser {
-    pub fn parse_var_declaration(&mut self) -> ParseResult<Stmt> {
+    pub fn parse_stmt(&mut self) -> ParseResult<Stmt> {
+        let expr = match self.current().kind {
+            TokenKind::VarDeclaration => self.parse_var_declaration()?,
+            _ => self.parse_expr_stmt()?,
+        };
+        Ok(expr)
+    }
+
+    pub fn parse_fn(&mut self) -> ParseResult<Stmt> {
+        trace!("Parsing fn");
+        self.advance()?;
+
+        let prototype = self.parse_prototype()?;
+        let (body, return_expr) = match self.parse_block()? {
+            Expr::Block { body, return_expr } => (body, return_expr),
+            _ => panic!("parse_block should always return a block!"),
+        };
+
+        let func = Function {
+            prototype,
+            body,
+            return_expr,
+            is_anon: false,
+        };
+
+        trace!("Parsed fn: {:#?}", func);
+
+        Ok(Stmt::Function(func))
+    }
+
+    fn parse_var_declaration(&mut self) -> ParseResult<Stmt> {
         self.advance()?;
         let stmt = match &self.current().kind {
             TokenKind::Identifier(_) => {
@@ -36,52 +67,12 @@ impl Parser {
             }
             _ => todo!("Return error"),
         };
-        self.consume(TokenKind::Semicolon, ParseError::MissingSemicolon())?;
         Ok(stmt)
     }
 
-    pub fn parse_fn(&mut self) -> ParseResult<Stmt> {
-        trace!("Parsing fn");
-        self.advance()?;
-
-        let prototype = self.parse_prototype()?;
-
-        match self.current().kind {
-            TokenKind::LeftBrace => self.advance()?,
-            _ => return Err(ParseError::MissingLeftBrace()),
-        };
-
-        if self.current().kind == TokenKind::RightBrace {
-            return Ok(Stmt::Function(Function {
-                prototype,
-                body: vec![],
-                is_anon: false,
-            }));
-        }
-
-        let mut body = vec![];
-        loop {
-            body.push(self.parse_declaration()?);
-
-            if self.is_at_end() {
-                return Err(ParseError::UnexpectedEndOfSource());
-            }
-
-            if self.current().kind == TokenKind::RightBrace {
-                self.advance()?;
-                break;
-            }
-        }
-
-        let func = Function {
-            prototype,
-            body,
-            is_anon: false,
-        };
-
-        trace!("Parsed fn: {:#?}", func);
-
-        Ok(Stmt::Function(func))
+    fn parse_expr_stmt(&mut self) -> ParseResult<Stmt> {
+        let expr = self.parse_expr()?;
+        Ok(Stmt::Expr(expr))
     }
 
     fn parse_prototype(&mut self) -> ParseResult<Prototype> {

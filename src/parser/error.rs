@@ -10,18 +10,20 @@ pub enum ParseError {
     MissingLeftParen(),
     #[error("Expected '{{' after expression")]
     MissingLeftBrace(),
-    #[error("Expected '}}' after expression")]
-    MissingRightBrace(),
-    #[error("Expected ';' after expression")]
+    #[error("Expected ';' after statment")]
     MissingSemicolon(),
     #[error("Expected ',' or ')' after expression")]
     MissingCommaOrRightParen(),
     #[error("Expected else")]
     MissingElse(),
+    #[error("Expected '=' after identifier")]
+    MissingEquals(),
     #[error("Expected ')' or ',' after argument declaration")]
     PrototypeMissingRightParenOrComma(),
     #[error("Unexpected token '{0}'")]
     UnexpectedToken(String),
+    #[error("Expected '{expected}' but found '{found}'")]
+    UnexpectedTokenVerbose { expected: String, found: String },
     #[error("Unexpected end of source")]
     UnexpectedEndOfSource(),
     #[error("Expected identifier in prototype declaration")]

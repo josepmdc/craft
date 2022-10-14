@@ -25,7 +25,11 @@ pub enum Expr {
     Literal {
         value: LiteralValue,
     },
-    Variable(Token),
+    Variable(String),
+    VariableAssignment {
+        id: String,
+        rhs: Box<Expr>,
+    },
     FnCall {
         fn_name: String,
         args: Vec<Expr>,
@@ -34,6 +38,10 @@ pub enum Expr {
         cond: Box<Expr>,
         then: Box<Expr>,
         else_: Box<Expr>,
+    },
+    Block {
+        body: Vec<Stmt>,
+        return_expr: Option<Box<Expr>>,
     },
 }
 
@@ -170,17 +178,7 @@ impl Parser {
                 }
             }
             TokenKind::LeftParen => self.parse_grouping()?,
-            TokenKind::Identifier(id) => match self.peek().kind {
-                TokenKind::LeftParen => {
-                    self.advance()?;
-                    self.parse_fn_call(id)?
-                }
-                _ => {
-                    let var = self.current().clone();
-                    self.advance()?;
-                    Expr::Variable(var)
-                }
-            },
+            TokenKind::Identifier(_) => self.parse_id_expr()?,
             TokenKind::If => self.parse_if()?,
             _ => {
                 let token = self.current();
@@ -195,19 +193,48 @@ impl Parser {
         Ok(expr)
     }
 
+    fn parse_id_expr(&mut self) -> ParseResult<Expr> {
+        match self.peek().kind {
+            TokenKind::LeftParen => self.parse_fn_call(),
+            TokenKind::Equal => self.parse_var_assignment(),
+            _ => {
+                let name = self.current().lexeme.clone();
+                self.advance()?;
+                Ok(Expr::Variable(name))
+            }
+        }
+    }
+
+    pub fn parse_var_assignment(&mut self) -> ParseResult<Expr> {
+        let id = self.current().lexeme.clone();
+        self.advance()?; // skip identifier
+
+        self.consume(TokenKind::Equal, ParseError::MissingEquals())?;
+
+        let rhs = Box::new(self.parse_expr()?);
+
+        Ok(Expr::VariableAssignment { id, rhs })
+    }
+
     pub fn parse_if(&mut self) -> ParseResult<Expr> {
         trace!("Parsing if");
         self.advance()?; // skip 'if' token
 
         let cond = self.parse_expr()?;
-        self.consume(TokenKind::LeftBrace, ParseError::MissingLeftBrace())?;
-        let then = self.parse_expr()?;
-        self.consume(TokenKind::RightBrace, ParseError::MissingRightBrace())?;
+        let then = self.parse_block()?;
 
         self.consume(TokenKind::Else, ParseError::MissingElse())?;
-        self.consume(TokenKind::LeftBrace, ParseError::MissingLeftBrace())?;
-        let else_ = self.parse_expr()?;
-        self.consume(TokenKind::RightBrace, ParseError::MissingRightBrace())?;
+
+        let else_ = match self.current().kind {
+            TokenKind::LeftBrace => self.parse_block()?,
+            TokenKind::If => self.parse_if()?,
+            _ => {
+                return Err(ParseError::UnexpectedTokenVerbose {
+                    expected: "{' or 'if".to_string(),
+                    found: self.current().lexeme.clone(),
+                })
+            }
+        };
 
         let conditional = Expr::Conditional {
             cond: Box::new(cond),
@@ -227,9 +254,12 @@ impl Parser {
         Ok(expr)
     }
 
-    pub fn parse_fn_call(&mut self, name: String) -> ParseResult<Expr> {
+    pub fn parse_fn_call(&mut self) -> ParseResult<Expr> {
         trace!("Parsing fn call");
-        self.advance()?; // Skip opening '('
+        let name = self.current().lexeme.clone();
+        self.advance()?; // Skip identifier
+
+        self.consume(TokenKind::LeftParen, ParseError::MissingLeftParen())?;
 
         if let TokenKind::RightParen = self.current().kind {
             self.advance()?; // Skip closing ')'
@@ -265,5 +295,57 @@ impl Parser {
         trace!("Parsed fn call: {:#?}", expr);
 
         Ok(expr)
+    }
+
+    pub fn parse_block(&mut self) -> ParseResult<Expr> {
+        trace!("Parsing block");
+        self.consume(TokenKind::LeftBrace, ParseError::MissingLeftBrace())?;
+
+        let mut body = vec![];
+
+        while !self.current_is(TokenKind::RightBrace) {
+            let stmt = self.parse_stmt()?;
+
+            match self.current().kind {
+                TokenKind::Semicolon => {
+                    self.advance()?; // skip ;
+                    body.push(stmt)
+                }
+                TokenKind::RightBrace => {
+                    // if the last line of the block is an expression, it'll be the return
+                    let expr = match stmt {
+                        Stmt::Expr(expr) => expr,
+                        _ => return Err(ParseError::MissingSemicolon()),
+                    };
+
+                    let block = Expr::Block {
+                        body,
+                        return_expr: Some(Box::new(expr)),
+                    };
+
+                    trace!("Parsed block: {:#?}", block);
+
+                    self.advance()?; // Skip '}'
+
+                    return Ok(block);
+                }
+                _ => return Err(ParseError::MissingSemicolon()),
+            };
+
+            if self.is_at_end() {
+                return Err(ParseError::UnexpectedEndOfSource());
+            }
+        }
+
+        self.advance()?; // Skip '}'
+
+        let block = Expr::Block {
+            body,
+            return_expr: None,
+        };
+
+        trace!("Parsed block: {:#?}", block);
+
+        Ok(block)
     }
 }
