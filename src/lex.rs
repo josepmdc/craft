@@ -131,9 +131,42 @@ impl Scanner {
             '-' => self.add_token(TokenKind::Minus),
             '*' => self.add_token(TokenKind::Star),
             '/' => self.add_token(TokenKind::Slash),
-            '=' => self.add_token(TokenKind::Equal),
-            '<' => self.add_token(TokenKind::Less),
-            '>' => self.add_token(TokenKind::Greater),
+            '=' => {
+                match self.current() {
+                    '=' => {
+                        self.advance();
+                        self.add_token(TokenKind::EqualEqual);
+                    }
+                    _ => self.add_token(TokenKind::Equal),
+                }
+            }
+            '<' => {
+                match self.current() {
+                    '=' => {
+                        self.advance();
+                        self.add_token(TokenKind::LessEqual)
+                    }
+                    _ => self.add_token(TokenKind::Less),
+                }
+            }
+            '>' => {
+                match self.current() {
+                    '=' => {
+                        self.advance();
+                        self.add_token(TokenKind::GreaterEqual)
+                    }
+                    _ => self.add_token(TokenKind::Greater),
+                }
+            }
+            '!' => {
+                match self.current() {
+                    '=' => {
+                        self.advance();
+                        self.add_token(TokenKind::BangEqual)
+                    }
+                    _ => self.add_token(TokenKind::Bang),
+                }
+            }
             '"' => self.add_string(),
             ' ' | '\r' | '\t' => (),
             '\n' => self.add_new_line(),
@@ -220,7 +253,7 @@ impl Scanner {
     }
 
     fn add_identifier(&mut self) {
-        while self.current().is_alphanumeric() {
+        while self.current().is_alphanumeric() || self.current() == '_' {
             self.advance();
         }
 

@@ -4,8 +4,8 @@ use thiserror::Error;
 pub enum CodegenError {
     #[error("Undeclared variable {0} or out of scope")]
     UndeclaredVariableOrOutOfScope(String),
-    #[error("Undefined binary operator")]
-    UndefinedBinaryOperator(),
+    #[error("Undefined binary operator {0}")]
+    UndefinedBinaryOperator(String),
     #[error("Invalid generated function.")]
     InvalidGeneratedFunction(),
     #[error("Invalid call to function {0}")]

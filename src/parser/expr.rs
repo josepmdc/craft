@@ -180,6 +180,7 @@ impl Parser {
             TokenKind::LeftParen => self.parse_grouping()?,
             TokenKind::Identifier(_) => self.parse_id_expr()?,
             TokenKind::If => self.parse_if()?,
+            TokenKind::LeftBrace => self.parse_block()?,
             _ => {
                 let token = self.current();
                 return Err(error::report(

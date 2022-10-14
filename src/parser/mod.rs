@@ -205,7 +205,6 @@ mod tests {
 
     #[test]
     fn parse_function_definition() {
-        env_logger::init();
         let src = r#"
             fn main(a, b) {
                 2 + 2 
@@ -225,7 +224,7 @@ mod tests {
                 args: vec!["a".to_string(), "b".to_string()],
             },
             body: vec![],
-            return_expr: Some(Box::new(Expr::Binary(BinaryExpr {
+            return_expr: Some(Expr::Binary(BinaryExpr {
                 left: Box::new(Expr::Literal {
                     value: LiteralValue::Number(2.0),
                 }),
@@ -237,7 +236,7 @@ mod tests {
                 right: Box::new(Expr::Literal {
                     value: LiteralValue::Number(2.0),
                 }),
-            }))),
+            })),
             is_anon: false,
         };
 
@@ -251,19 +250,27 @@ mod tests {
 
     #[test]
     fn parse_function_call() {
-        let src = "main(a, b);".to_string();
+        let src = "fn main() { some_fn(a, b); }".to_string();
         let mut scanner = Scanner::new(src.clone());
         let tokens = scanner.scan_tokens();
         let mut parser = Parser::new(tokens.to_vec());
         let actual_ast = parser.parse().unwrap();
         trace!("AST for {}: \n{:#?}", src, actual_ast);
 
-        let expected_ast = Stmt::Expr(Expr::FnCall {
-            fn_name: "main".to_string(),
-            args: vec![
-                Expr::Variable("a".to_string()),
-                Expr::Variable("b".to_string()),
-            ],
+        let expected_ast = Stmt::Function(Function {
+            prototype: Prototype {
+                name: "main".to_string(),
+                args: vec![],
+            },
+            body: vec![Stmt::Expr(Expr::FnCall {
+                fn_name: "some_fn".to_string(),
+                args: vec![
+                    Expr::Variable("a".to_string()),
+                    Expr::Variable("b".to_string()),
+                ],
+            })],
+            return_expr: None,
+            is_anon: false,
         });
 
         assert_eq!(actual_ast.len(), 1);

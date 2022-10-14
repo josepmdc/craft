@@ -11,7 +11,6 @@ use std::{
 use error::CompilerError;
 use inkwell::{context::Context, module::Module, OptimizationLevel};
 use lex::Scanner;
-use log::LevelFilter;
 use parser::stmt::Function;
 
 use crate::{
@@ -28,19 +27,7 @@ extern crate log;
 pub const PROGRAM_STARTING_POINT: &str = "main";
 
 fn main() {
-    env_logger::Builder::new()
-        .format(|buf, record| {
-            writeln!(
-                buf,
-                "[{}] {}:{} - {}",
-                record.level(),
-                record.file().unwrap_or("unknown"),
-                record.line().unwrap_or(0),
-                record.args()
-            )
-        })
-        .filter(Some("craft"), LevelFilter::Trace)
-        .init();
+    env_logger::init();
 
     let args: Vec<String> = env::args().collect();
     if args.len() > 2 {

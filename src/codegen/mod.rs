@@ -91,9 +91,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             self.variables.insert(proto.args[i].clone(), alloca);
         }
 
-        let return_expr = self.function.return_expr.clone().and_then(|x| Some(*x));
-
-        match self.compile_block(&self.function.body, return_expr)? {
+        match self.compile_block(&self.function.body, self.function.return_expr.clone())? {
             Some(ret) => self.builder.build_return(Some(&ret)),
             None => self.builder.build_return(None),
         };
@@ -266,7 +264,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             TokenKind::Less => Ok({
                 let cmp = self
                     .builder
-                    .build_float_compare(FloatPredicate::ULT, lhs, rhs, "cmptmp");
+                    .build_float_compare(FloatPredicate::ULT, lhs, rhs, "cmplttmp");
 
                 self.builder
                     .build_unsigned_int_to_float(cmp, self.context.f64_type(), "booltmp")
@@ -274,12 +272,44 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             TokenKind::Greater => Ok({
                 let cmp = self
                     .builder
-                    .build_float_compare(FloatPredicate::ULT, rhs, lhs, "cmptmp");
+                    .build_float_compare(FloatPredicate::UGT, lhs, rhs, "cmpgttmp");
 
                 self.builder
                     .build_unsigned_int_to_float(cmp, self.context.f64_type(), "booltmp")
             }),
-            _ => Err(CodegenError::UndefinedBinaryOperator()),
+            TokenKind::LessEqual => Ok({
+                let cmp = self
+                    .builder
+                    .build_float_compare(FloatPredicate::ULE, lhs, rhs, "cmpletmp");
+
+                self.builder
+                    .build_unsigned_int_to_float(cmp, self.context.f64_type(), "booltmp")
+            }),
+            TokenKind::GreaterEqual => Ok({
+                let cmp = self
+                    .builder
+                    .build_float_compare(FloatPredicate::UGE, lhs, rhs, "cmpgetmp");
+
+                self.builder
+                    .build_unsigned_int_to_float(cmp, self.context.f64_type(), "booltmp")
+            }),
+            TokenKind::EqualEqual => Ok({
+                let cmp = self
+                    .builder
+                    .build_float_compare(FloatPredicate::UEQ, lhs, rhs, "cmpeqtmp");
+
+                self.builder
+                    .build_unsigned_int_to_float(cmp, self.context.f64_type(), "booltmp")
+            }),
+            TokenKind::BangEqual => Ok({
+                let cmp = self
+                    .builder
+                    .build_float_compare(FloatPredicate::UNE, lhs, rhs, "cmpnetmp");
+
+                self.builder
+                    .build_unsigned_int_to_float(cmp, self.context.f64_type(), "booltmp")
+            }),
+            _ => Err(CodegenError::UndefinedBinaryOperator(format!("{:#?}", expr.operator.kind))),
         }
     }
 
