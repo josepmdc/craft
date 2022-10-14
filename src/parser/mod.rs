@@ -205,7 +205,6 @@ mod tests {
 
     #[test]
     fn parse_function_definition() {
-        env_logger::init();
         let src = r#"
             fn main(a, b) {
                 2 + 2 
@@ -225,7 +224,7 @@ mod tests {
                 args: vec!["a".to_string(), "b".to_string()],
             },
             body: vec![],
-            return_expr: Some(Box::new(Expr::Binary(BinaryExpr {
+            return_expr: Some(Expr::Binary(BinaryExpr {
                 left: Box::new(Expr::Literal {
                     value: LiteralValue::Number(2.0),
                 }),
@@ -237,7 +236,7 @@ mod tests {
                 right: Box::new(Expr::Literal {
                     value: LiteralValue::Number(2.0),
                 }),
-            }))),
+            })),
             is_anon: false,
         };
 
@@ -251,7 +250,6 @@ mod tests {
 
     #[test]
     fn parse_function_call() {
-        env_logger::init();
         let src = "fn main() { some_fn(a, b); }".to_string();
         let mut scanner = Scanner::new(src.clone());
         let tokens = scanner.scan_tokens();

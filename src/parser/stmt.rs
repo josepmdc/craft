@@ -19,7 +19,7 @@ pub struct Prototype {
 pub struct Function {
     pub prototype: Prototype,
     pub body: Vec<Stmt>,
-    pub return_expr: Option<Box<Expr>>,
+    pub return_expr: Option<Expr>,
     pub is_anon: bool,
 }
 
@@ -45,7 +45,7 @@ impl Parser {
         let func = Function {
             prototype,
             body,
-            return_expr,
+            return_expr: return_expr.and_then(|x| Some(*x)),
             is_anon: false,
         };
 

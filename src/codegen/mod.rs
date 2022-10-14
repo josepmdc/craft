@@ -91,9 +91,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             self.variables.insert(proto.args[i].clone(), alloca);
         }
 
-        let return_expr = self.function.return_expr.clone().and_then(|x| Some(*x));
-
-        match self.compile_block(&self.function.body, return_expr)? {
+        match self.compile_block(&self.function.body, self.function.return_expr.clone())? {
             Some(ret) => self.builder.build_return(Some(&ret)),
             None => self.builder.build_return(None),
         };
