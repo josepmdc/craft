@@ -69,7 +69,7 @@ impl Parser {
         };
         Ok(stmt)
     }
-    
+
     fn parse_expr_stmt(&mut self) -> ParseResult<Stmt> {
         let expr = self.parse_expr()?;
         Ok(Stmt::Expr(expr))

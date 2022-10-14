@@ -210,7 +210,8 @@ mod tests {
             fn main(a, b) {
                 2 + 2 
             }
-        "#.to_string();
+        "#
+        .to_string();
 
         let mut scanner = Scanner::new(src.clone());
         let tokens = scanner.scan_tokens();

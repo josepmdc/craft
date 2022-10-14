@@ -150,7 +150,11 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         Ok(())
     }
 
-    fn compile_var_assignment(&mut self, name: &String, rhs: &Expr) -> CodegenResult<FloatValue<'ctx>> {
+    fn compile_var_assignment(
+        &mut self,
+        name: &String,
+        rhs: &Expr,
+    ) -> CodegenResult<FloatValue<'ctx>> {
         let val = self.compile_expr(rhs)?;
         let var = self
             .variables
@@ -173,7 +177,9 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             Expr::VariableAssignment { id, rhs } => self.compile_var_assignment(id, &*rhs),
             Expr::Block { body, return_expr } => self.compile_expr_block(
                 body,
-                *return_expr.clone().ok_or(CodegenError::ExpectedReturnExpr())?,
+                *return_expr
+                    .clone()
+                    .ok_or(CodegenError::ExpectedReturnExpr())?,
             ),
         }
     }
