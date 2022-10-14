@@ -45,7 +45,7 @@ impl Parser {
         let func = Function {
             prototype,
             body,
-            return_expr: return_expr.and_then(|x| Some(*x)),
+            return_expr: return_expr.map(|x| *x),
             is_anon: false,
         };
 
