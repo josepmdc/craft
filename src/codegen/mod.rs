@@ -77,6 +77,10 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         let proto = &self.function.prototype;
         let function = self.compile_prototype(proto)?;
 
+        if self.function.is_builtin {
+            return Ok(function);
+        }
+
         let entry = self.context.append_basic_block(function, "entry");
 
         self.builder.position_at_end(entry);

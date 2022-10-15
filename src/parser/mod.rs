@@ -4,7 +4,10 @@ pub mod stmt;
 
 use crate::lex::{Token, TokenKind};
 
-use self::{error::ParseError, stmt::Stmt};
+use self::{
+    error::ParseError,
+    stmt::{Function, Stmt},
+};
 
 pub type ParseResult<T> = Result<T, ParseError>;
 
@@ -30,6 +33,16 @@ impl Parser {
 
     pub fn parse(&mut self) -> ParseResult<Vec<Stmt>> {
         let mut statments: Vec<Stmt> = Vec::new();
+        statments.push(Stmt::Function(Function {
+            prototype: stmt::Prototype {
+                name: "print".to_string(),
+                args: vec!["x".to_string()],
+            },
+            body: vec![],
+            return_expr: None,
+            is_anon: false,
+            is_builtin: true,
+        }));
         while !self.is_at_end() {
             statments.push(self.parse_declaration()?);
         }
@@ -238,6 +251,7 @@ mod tests {
                 }),
             })),
             is_anon: false,
+            is_builtin: false,
         };
 
         let func = match actual_ast[0].clone() {
@@ -271,6 +285,7 @@ mod tests {
             })],
             return_expr: None,
             is_anon: false,
+            is_builtin: false,
         });
 
         assert_eq!(actual_ast.len(), 1);

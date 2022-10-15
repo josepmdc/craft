@@ -9,6 +9,7 @@ edition = "2021"
 thiserror = "1"
 log = "0.4.0"
 env_logger = "0.9.0"
+llvm-sys = "140"
 
 [dependencies.inkwell]
 package = "inkwell"

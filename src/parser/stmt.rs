@@ -21,6 +21,7 @@ pub struct Function {
     pub body: Vec<Stmt>,
     pub return_expr: Option<Expr>,
     pub is_anon: bool,
+    pub is_builtin: bool,
 }
 
 impl Parser {
@@ -47,6 +48,7 @@ impl Parser {
             body,
             return_expr: return_expr.map(|x| *x),
             is_anon: false,
+            is_builtin: false,
         };
 
         trace!("Parsed fn: {:#?}", func);
