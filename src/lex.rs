@@ -132,42 +132,34 @@ impl Scanner {
             '-' => self.add_token(TokenKind::Minus),
             '*' => self.add_token(TokenKind::Star),
             '/' => self.add_token(TokenKind::Slash),
-            '=' => {
-                match self.current() {
-                    '=' => {
-                        self.advance();
-                        self.add_token(TokenKind::EqualEqual);
-                    }
-                    _ => self.add_token(TokenKind::Equal),
+            '=' => match self.current() {
+                '=' => {
+                    self.advance();
+                    self.add_token(TokenKind::EqualEqual);
                 }
-            }
-            '<' => {
-                match self.current() {
-                    '=' => {
-                        self.advance();
-                        self.add_token(TokenKind::LessEqual)
-                    }
-                    _ => self.add_token(TokenKind::Less),
+                _ => self.add_token(TokenKind::Equal),
+            },
+            '<' => match self.current() {
+                '=' => {
+                    self.advance();
+                    self.add_token(TokenKind::LessEqual)
                 }
-            }
-            '>' => {
-                match self.current() {
-                    '=' => {
-                        self.advance();
-                        self.add_token(TokenKind::GreaterEqual)
-                    }
-                    _ => self.add_token(TokenKind::Greater),
+                _ => self.add_token(TokenKind::Less),
+            },
+            '>' => match self.current() {
+                '=' => {
+                    self.advance();
+                    self.add_token(TokenKind::GreaterEqual)
                 }
-            }
-            '!' => {
-                match self.current() {
-                    '=' => {
-                        self.advance();
-                        self.add_token(TokenKind::BangEqual)
-                    }
-                    _ => self.add_token(TokenKind::Bang),
+                _ => self.add_token(TokenKind::Greater),
+            },
+            '!' => match self.current() {
+                '=' => {
+                    self.advance();
+                    self.add_token(TokenKind::BangEqual)
                 }
-            }
+                _ => self.add_token(TokenKind::Bang),
+            },
             '"' => self.add_string(),
             ' ' | '\r' | '\t' => (),
             '\n' => self.add_new_line(),
