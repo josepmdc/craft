@@ -7,6 +7,7 @@ pub enum Stmt {
     Function(Function),
     Var { token: Token, initializer: Expr },
     Expr(Expr),
+    While { cond: Expr, body: Expr },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -28,6 +29,7 @@ impl Parser {
     pub fn parse_stmt(&mut self) -> ParseResult<Stmt> {
         let expr = match self.current().kind {
             TokenKind::VarDeclaration => self.parse_var_declaration()?,
+            TokenKind::While => self.parse_while()?,
             _ => self.parse_expr_stmt()?,
         };
         Ok(expr)
@@ -39,7 +41,7 @@ impl Parser {
 
         let prototype = self.parse_prototype()?;
         let (body, return_expr) = match self.parse_block()? {
-            Expr::Block { body, return_expr } => (body, return_expr),
+            Expr::Block(block) => (block.body, block.return_expr),
             _ => panic!("parse_block should always return a block!"),
         };
 
@@ -130,5 +132,12 @@ impl Parser {
         trace!("Parsed args: {:#?}", args);
 
         Ok(args)
+    }
+
+    fn parse_while(&mut self) -> ParseResult<Stmt> {
+        self.advance()?; // skip 'wile'
+        let cond = self.parse_expr()?;
+        let body = self.parse_block()?;
+        Ok(Stmt::While { cond, body })
     }
 }

@@ -44,6 +44,7 @@ pub enum TokenKind {
     VarDeclaration,
     If,
     Else,
+    While,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -190,6 +191,7 @@ impl Scanner {
             "false" => Some(TokenKind::False),
             "if" => Some(TokenKind::If),
             "else" => Some(TokenKind::Else),
+            "while" => Some(TokenKind::While),
             _ => None,
         }
     }

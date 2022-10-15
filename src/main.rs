@@ -1,8 +1,8 @@
 mod codegen;
 mod error;
+mod external;
 mod lex;
 mod parser;
-mod lib;
 
 use std::{
     env, fs,
@@ -12,7 +12,6 @@ use std::{
 use error::CompilerError;
 use inkwell::{context::Context, module::Module, OptimizationLevel};
 use lex::Scanner;
-use lib::shim_lib_functions;
 use parser::stmt::Function;
 
 use crate::{
@@ -30,7 +29,7 @@ pub const PROGRAM_STARTING_POINT: &str = "main";
 
 fn main() {
     env_logger::init();
-    shim_lib_functions();
+    external::shim_builtin_functions();
 
     let args: Vec<String> = env::args().collect();
     if args.len() > 2 {
@@ -76,7 +75,8 @@ fn run(source: String) -> Result<(), CompilerError> {
     let mut scanner = Scanner::new(source);
     let tokens = scanner.scan_tokens();
     let mut parser = Parser::new(tokens.to_vec());
-    let ast = parser.parse()?;
+    let mut ast = external::builtin_funtions();
+    ast.append(&mut parser.parse()?);
 
     let context = Context::create();
     let module = context.create_module("repl");

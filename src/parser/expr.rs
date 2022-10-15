@@ -19,6 +19,12 @@ pub struct UnaryExpr {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub struct Block {
+    pub body: Vec<Stmt>,
+    pub return_expr: Option<Box<Expr>>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub enum Expr {
     Binary(BinaryExpr),
     Unary(UnaryExpr),
@@ -39,10 +45,7 @@ pub enum Expr {
         then: Box<Expr>,
         else_: Box<Expr>,
     },
-    Block {
-        body: Vec<Stmt>,
-        return_expr: Option<Box<Expr>>,
-    },
+    Block(Block),
 }
 
 impl Parser {
@@ -319,7 +322,7 @@ impl Parser {
                         _ => return Err(ParseError::MissingSemicolon()),
                     };
 
-                    let block = Expr::Block {
+                    let block = Block {
                         body,
                         return_expr: Some(Box::new(expr)),
                     };
@@ -328,7 +331,7 @@ impl Parser {
 
                     self.advance()?; // Skip '}'
 
-                    return Ok(block);
+                    return Ok(Expr::Block(block));
                 }
                 _ => return Err(ParseError::MissingSemicolon()),
             };
@@ -340,13 +343,13 @@ impl Parser {
 
         self.advance()?; // Skip '}'
 
-        let block = Expr::Block {
+        let block = Block {
             body,
             return_expr: None,
         };
 
         trace!("Parsed block: {:#?}", block);
 
-        Ok(block)
+        Ok(Expr::Block(block))
     }
 }

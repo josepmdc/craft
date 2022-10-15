@@ -67,10 +67,8 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
     }
 
     fn fn_value(&self, stmt_name: String) -> CodegenResult<FunctionValue<'ctx>> {
-        match self.fn_value_opt {
-            Some(fn_value) => Ok(fn_value),
-            None => Err(CodegenError::OutsideOfFuncion(stmt_name)),
-        }
+        self.fn_value_opt
+            .ok_or(CodegenError::OutsideOfFuncion(stmt_name))
     }
 
     fn compile_fn(&mut self) -> CodegenResult<FunctionValue<'ctx>> {
@@ -132,15 +130,20 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         Ok(fn_val)
     }
 
-    fn compile_stmt(&mut self, stmt: &Stmt) -> CodegenResult<Option<FloatValue<'ctx>>> {
+    fn compile_stmt(&mut self, stmt: &Stmt) -> CodegenResult<()> {
         match stmt {
             Stmt::Var { token, initializer } => {
                 self.compile_var_declaration(token.lexeme.clone(), initializer)?;
-                Ok(None)
             }
-            Stmt::Expr(expr) => Ok(Some(self.compile_expr(expr)?)),
+            Stmt::Expr(expr) => {
+                self.compile_expr(expr)?;
+            }
+            Stmt::While { cond, body } => {
+                self.compile_while(cond, body)?;
+            }
             _ => todo!(),
-        }
+        };
+        Ok(())
     }
 
     fn compile_var_declaration(&mut self, name: String, initializer: &Expr) -> CodegenResult<()> {
@@ -177,9 +180,10 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                 self.compile_conditional(*cond.clone(), *then.clone(), *else_.clone())
             }
             Expr::VariableAssignment { id, rhs } => self.compile_var_assignment(id, &*rhs),
-            Expr::Block { body, return_expr } => self.compile_expr_block(
-                body,
-                *return_expr
+            Expr::Block(block) => self.compile_expr_block(
+                &block.body,
+                *block
+                    .return_expr
                     .clone()
                     .ok_or(CodegenError::ExpectedReturnExpr())?,
             ),
@@ -266,54 +270,57 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             TokenKind::Star => Ok(self.builder.build_float_mul(lhs, rhs, "multmp")),
             TokenKind::Slash => Ok(self.builder.build_float_div(lhs, rhs, "divtmp")),
             TokenKind::Less => Ok({
-                let cmp = self
-                    .builder
-                    .build_float_compare(FloatPredicate::ULT, lhs, rhs, "cmplttmp");
+                let cmp =
+                    self.builder
+                        .build_float_compare(FloatPredicate::ULT, lhs, rhs, "cmplttmp");
 
                 self.builder
                     .build_unsigned_int_to_float(cmp, self.context.f64_type(), "booltmp")
             }),
             TokenKind::Greater => Ok({
-                let cmp = self
-                    .builder
-                    .build_float_compare(FloatPredicate::UGT, lhs, rhs, "cmpgttmp");
+                let cmp =
+                    self.builder
+                        .build_float_compare(FloatPredicate::UGT, lhs, rhs, "cmpgttmp");
 
                 self.builder
                     .build_unsigned_int_to_float(cmp, self.context.f64_type(), "booltmp")
             }),
             TokenKind::LessEqual => Ok({
-                let cmp = self
-                    .builder
-                    .build_float_compare(FloatPredicate::ULE, lhs, rhs, "cmpletmp");
+                let cmp =
+                    self.builder
+                        .build_float_compare(FloatPredicate::ULE, lhs, rhs, "cmpletmp");
 
                 self.builder
                     .build_unsigned_int_to_float(cmp, self.context.f64_type(), "booltmp")
             }),
             TokenKind::GreaterEqual => Ok({
-                let cmp = self
-                    .builder
-                    .build_float_compare(FloatPredicate::UGE, lhs, rhs, "cmpgetmp");
+                let cmp =
+                    self.builder
+                        .build_float_compare(FloatPredicate::UGE, lhs, rhs, "cmpgetmp");
 
                 self.builder
                     .build_unsigned_int_to_float(cmp, self.context.f64_type(), "booltmp")
             }),
             TokenKind::EqualEqual => Ok({
-                let cmp = self
-                    .builder
-                    .build_float_compare(FloatPredicate::UEQ, lhs, rhs, "cmpeqtmp");
+                let cmp =
+                    self.builder
+                        .build_float_compare(FloatPredicate::UEQ, lhs, rhs, "cmpeqtmp");
 
                 self.builder
                     .build_unsigned_int_to_float(cmp, self.context.f64_type(), "booltmp")
             }),
             TokenKind::BangEqual => Ok({
-                let cmp = self
-                    .builder
-                    .build_float_compare(FloatPredicate::UNE, lhs, rhs, "cmpnetmp");
+                let cmp =
+                    self.builder
+                        .build_float_compare(FloatPredicate::UNE, lhs, rhs, "cmpnetmp");
 
                 self.builder
                     .build_unsigned_int_to_float(cmp, self.context.f64_type(), "booltmp")
             }),
-            _ => Err(CodegenError::UndefinedBinaryOperator(format!("{:#?}", expr.operator.kind))),
+            _ => Err(CodegenError::UndefinedBinaryOperator(format!(
+                "{:#?}",
+                expr.operator.kind
+            ))),
         }
     }
 
@@ -371,5 +378,31 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         phi.add_incoming(&[(&then_val, then_bb), (&else_val, else_bb)]);
 
         Ok(phi.as_basic_value().into_float_value())
+    }
+
+    fn compile_while(&mut self, cond: &Expr, body: &Expr) -> CodegenResult<()> {
+        let parent = self.fn_value("while loop".to_string())?;
+        let loop_bb = self.context.append_basic_block(parent, "loop");
+
+        self.builder.build_unconditional_branch(loop_bb);
+        self.builder.position_at_end(loop_bb);
+
+        let end_cond = self.compile_expr(cond)?;
+
+        self.compile_expr(body)?;
+
+        let end_cond = self.builder.build_float_compare(
+            FloatPredicate::ONE,
+            end_cond,
+            self.context.f64_type().const_float(0.0),
+            "whilecond",
+        );
+        let after_bb = self.context.append_basic_block(parent, "afterwhile");
+
+        self.builder
+            .build_conditional_branch(end_cond, loop_bb, after_bb);
+        self.builder.position_at_end(after_bb);
+
+        Ok(())
     }
 }
