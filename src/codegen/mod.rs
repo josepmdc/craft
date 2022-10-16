@@ -317,6 +317,22 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                 self.builder
                     .build_unsigned_int_to_float(cmp, self.context.f64_type(), "booltmp")
             }),
+            TokenKind::And => Ok({
+                // TODO Build type system to avoid casting feom float to int consistently
+                let lhs = self.builder.build_float_to_unsigned_int(
+                    lhs,
+                    self.context.custom_width_int_type(1),
+                    "lhsbooltmp",
+                );
+                let rhs = self.builder.build_float_to_unsigned_int(
+                    rhs,
+                    self.context.custom_width_int_type(1),
+                    "rhsbooltmp",
+                );
+                let cmp = self.builder.build_and(lhs, rhs, "andtmp");
+                self.builder
+                    .build_unsigned_int_to_float(cmp, self.context.f64_type(), "booltmp")
+            }),
             _ => Err(CodegenError::UndefinedBinaryOperator(format!(
                 "{:#?}",
                 expr.operator.kind

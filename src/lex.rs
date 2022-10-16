@@ -1,5 +1,3 @@
-use std::fmt;
-
 use crate::error;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -45,6 +43,8 @@ pub enum TokenKind {
     If,
     Else,
     While,
+    And,
+    Or,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -52,28 +52,6 @@ pub struct Token {
     pub kind: TokenKind,
     pub lexeme: String,
     pub loc: Location,
-}
-
-impl fmt::Display for Token {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self.kind {
-            TokenKind::String { literal } => write!(
-                f,
-                "{}:{} => {:?} {:?}",
-                self.loc.line, self.loc.col, self.lexeme, literal
-            ),
-            TokenKind::Number { literal } => write!(
-                f,
-                "{}:{} => {:?} {:?}",
-                self.loc.line, self.loc.col, self.lexeme, literal
-            ),
-            _ => write!(
-                f,
-                "{}:{} => {:?} {:?}",
-                self.loc.line, self.loc.col, self.kind, self.lexeme
-            ),
-        }
-    }
 }
 
 impl Token {
@@ -159,6 +137,20 @@ impl Scanner {
                     self.add_token(TokenKind::BangEqual)
                 }
                 _ => self.add_token(TokenKind::Bang),
+            },
+            '&' => match self.current() {
+                '&' => {
+                    self.advance();
+                    self.add_token(TokenKind::And)
+                }
+                c => error::report(self.line, self.col, format!("Unexpected character {}", c)),
+            },
+            '|' => match self.current() {
+                '|' => {
+                    self.advance();
+                    self.add_token(TokenKind::Or)
+                }
+                c => error::report(self.line, self.col, format!("Unexpected character {}", c)),
             },
             '"' => self.add_string(),
             ' ' | '\r' | '\t' => (),

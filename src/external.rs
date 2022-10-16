@@ -42,7 +42,6 @@ fn new_builtin_fn(name: &str, args: Vec<String>) -> Function {
         },
         body: vec![],
         return_expr: None,
-        is_anon: false,
         is_builtin: true,
     }
 }

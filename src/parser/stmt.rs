@@ -21,7 +21,6 @@ pub struct Function {
     pub prototype: Prototype,
     pub body: Vec<Stmt>,
     pub return_expr: Option<Expr>,
-    pub is_anon: bool,
     pub is_builtin: bool,
 }
 
@@ -49,7 +48,6 @@ impl Parser {
             prototype,
             body,
             return_expr: return_expr.map(|x| *x),
-            is_anon: false,
             is_builtin: false,
         };
 

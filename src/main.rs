@@ -4,22 +4,15 @@ mod external;
 mod lex;
 mod parser;
 
-use std::{
-    env, fs,
-    io::{self, Write},
-};
+use std::{env, fs};
 
 use error::CompilerError;
 use inkwell::{context::Context, module::Module, OptimizationLevel};
 use lex::Scanner;
-use parser::stmt::Function;
 
 use crate::{
     codegen::Compiler,
-    parser::{
-        stmt::{Prototype, Stmt},
-        Parser,
-    },
+    parser::{stmt::Stmt, Parser},
 };
 
 #[macro_use]
@@ -32,13 +25,7 @@ fn main() {
     external::shim_builtin_functions();
 
     let args: Vec<String> = env::args().collect();
-    if args.len() > 2 {
-        println!("Usage: craft [script]");
-    } else if args.len() == 2 {
-        run_file(&args[1]);
-    } else {
-        run_repl();
-    }
+    run_file(&args[1]);
 }
 
 fn run_file(path: &String) {
@@ -48,35 +35,39 @@ fn run_file(path: &String) {
     }
 }
 
-fn run_repl() {
-    loop {
-        let mut input = String::new();
+fn run(source: String) -> Result<(), CompilerError> {
+    let mut display_lexer_output = false;
+    let mut display_parser_output = false;
+    let mut display_compiler_output = false;
 
-        print_prompt();
-
-        io::stdin()
-            .read_line(&mut input)
-            .expect("Could not read line");
-
-        if input.starts_with("exit") || input.starts_with("quit") {
-            break;
-        } else if input.chars().all(char::is_whitespace) {
-            continue;
-        }
-
-        if let Err(err) = run(input) {
-            error!("{}", err);
+    for arg in env::args() {
+        match arg.as_str() {
+            "-l" => display_lexer_output = true,
+            "-p" => display_parser_output = true,
+            "-c" => display_compiler_output = true,
+            _ => (),
         }
     }
-}
 
-fn run(source: String) -> Result<(), CompilerError> {
     trace!("\n{}", source);
     let mut scanner = Scanner::new(source);
     let tokens = scanner.scan_tokens();
+
+    if display_lexer_output {
+        println!("----------------------------------");
+        println!("{:#?}", tokens);
+        println!("----------------------------------");
+    }
+
     let mut parser = Parser::new(tokens.to_vec());
     let mut ast = external::builtin_funtions();
     ast.append(&mut parser.parse()?);
+
+    if display_parser_output {
+        println!("----------------------------------");
+        println!("{:#?}", ast);
+        println!("----------------------------------");
+    }
 
     let context = Context::create();
     let module = context.create_module("repl");
@@ -85,24 +76,16 @@ fn run(source: String) -> Result<(), CompilerError> {
     for func in ast {
         let func = match func {
             Stmt::Function(func) => func.clone(),
-            Stmt::Expr(expr) => Function {
-                prototype: Prototype {
-                    name: PROGRAM_STARTING_POINT.to_string(),
-                    args: vec![],
-                },
-                body: vec![Stmt::Expr(expr.clone())],
-                return_expr: None,
-                is_anon: true,
-                is_builtin: false,
-            },
             _ => panic!("Unexpected statement, {:#?}", func),
         };
 
         match Compiler::compile(&context, &builder, &module, &func) {
             Ok(function) => {
-                println!("--------------------------------");
-                function.print_to_stderr();
-                println!("--------------------------------");
+                if display_compiler_output {
+                    println!("--------------------------------");
+                    function.print_to_stderr();
+                    println!("--------------------------------");
+                }
             }
             Err(err) => return Err(CompilerError::CodegenError(err)),
         }
@@ -131,9 +114,4 @@ fn run_jit(module: &Module) {
     unsafe {
         println!("=> {}", compiled_fn.call());
     }
-}
-
-fn print_prompt() {
-    print!(">> ");
-    io::stdout().flush().unwrap();
 }
