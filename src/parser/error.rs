@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-use crate::{error, lex::Token};
+use crate::{error, lexer::token::Token};
 
 #[derive(Error, Debug)]
 pub enum ParseError {

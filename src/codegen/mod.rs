@@ -7,12 +7,12 @@ use inkwell::{
     context::Context,
     module::Module,
     types::BasicMetadataTypeEnum,
-    values::{BasicMetadataValueEnum, BasicValue, FloatValue, FunctionValue, PointerValue},
-    FloatPredicate,
+    values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue, PointerValue},
+    FloatPredicate, IntPredicate,
 };
 
 use crate::{
-    lex::TokenKind,
+    lexer::token::TokenKind,
     parser::{
         expr::{BinaryExpr, Expr, UnaryExpr},
         stmt::{Function, Prototype, Stmt},
@@ -159,7 +159,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         &mut self,
         name: &String,
         rhs: &Expr,
-    ) -> CodegenResult<FloatValue<'ctx>> {
+    ) -> CodegenResult<BasicValueEnum<'ctx>> {
         let val = self.compile_expr(rhs)?;
         let var = self
             .variables
@@ -169,7 +169,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         Ok(val)
     }
 
-    fn compile_expr(&mut self, expr: &Expr) -> CodegenResult<FloatValue<'ctx>> {
+    fn compile_expr(&mut self, expr: &Expr) -> CodegenResult<BasicValueEnum<'ctx>> {
         match expr {
             Expr::Literal { value } => self.compile_literal(value),
             Expr::Binary(expr) => self.compile_binary(expr),
@@ -194,7 +194,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         &mut self,
         body: &Vec<Stmt>,
         return_expr: Expr,
-    ) -> CodegenResult<FloatValue<'ctx>> {
+    ) -> CodegenResult<BasicValueEnum<'ctx>> {
         self.compile_body(body)?;
         Ok(self.compile_expr(&return_expr)?)
     }
@@ -203,7 +203,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         &mut self,
         body: &Vec<Stmt>,
         return_expr: Option<Expr>,
-    ) -> CodegenResult<Option<FloatValue<'ctx>>> {
+    ) -> CodegenResult<Option<BasicValueEnum<'ctx>>> {
         self.compile_body(body)?;
         let compiled_return = match return_expr {
             Some(expr) => Some(self.compile_expr(&expr)?),
@@ -223,7 +223,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         &mut self,
         fn_name: &String,
         args: &Vec<Expr>,
-    ) -> CodegenResult<FloatValue<'ctx>> {
+    ) -> CodegenResult<BasicValueEnum<'ctx>> {
         match self.module.get_function(fn_name.as_str()) {
             Some(fun) => {
                 let mut compiled_args = Vec::with_capacity(args.len());
@@ -244,7 +244,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                     .try_as_basic_value()
                     .left()
                 {
-                    Some(value) => Ok(value.into_float_value()),
+                    Some(value) => Ok(value),
                     None => Err(CodegenError::InvalidCall(fn_name.to_owned())),
                 }
             }
@@ -252,101 +252,181 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         }
     }
 
-    fn compile_literal(&self, literal: &LiteralValue) -> CodegenResult<FloatValue<'ctx>> {
+    fn compile_literal(&self, literal: &LiteralValue) -> CodegenResult<BasicValueEnum<'ctx>> {
         match literal {
             LiteralValue::Boolean(_) => todo!(),
-            LiteralValue::Number(number) => Ok(self.context.f64_type().const_float(*number)),
+            LiteralValue::Number(number) => Ok(BasicValueEnum::FloatValue(
+                self.context.f64_type().const_float(*number),
+            )),
             LiteralValue::String(_) => todo!(),
         }
     }
 
-    fn compile_binary(&mut self, expr: &BinaryExpr) -> CodegenResult<FloatValue<'ctx>> {
+    fn compile_binary(&mut self, expr: &BinaryExpr) -> CodegenResult<BasicValueEnum<'ctx>> {
         let lhs = self.compile_expr(&*expr.left)?;
         let rhs = self.compile_expr(&*expr.right)?;
 
         match expr.operator.kind {
-            TokenKind::Plus => Ok(self.builder.build_float_add(lhs, rhs, "addtmp")),
-            TokenKind::Minus => Ok(self.builder.build_float_sub(lhs, rhs, "subtmp")),
-            TokenKind::Star => Ok(self.builder.build_float_mul(lhs, rhs, "multmp")),
-            TokenKind::Slash => Ok(self.builder.build_float_div(lhs, rhs, "divtmp")),
-            TokenKind::Less => Ok({
-                let cmp =
-                    self.builder
-                        .build_float_compare(FloatPredicate::ULT, lhs, rhs, "cmplttmp");
-
-                self.builder
-                    .build_unsigned_int_to_float(cmp, self.context.f64_type(), "booltmp")
-            }),
-            TokenKind::Greater => Ok({
-                let cmp =
-                    self.builder
-                        .build_float_compare(FloatPredicate::UGT, lhs, rhs, "cmpgttmp");
-
-                self.builder
-                    .build_unsigned_int_to_float(cmp, self.context.f64_type(), "booltmp")
-            }),
-            TokenKind::LessEqual => Ok({
-                let cmp =
-                    self.builder
-                        .build_float_compare(FloatPredicate::ULE, lhs, rhs, "cmpletmp");
-
-                self.builder
-                    .build_unsigned_int_to_float(cmp, self.context.f64_type(), "booltmp")
-            }),
-            TokenKind::GreaterEqual => Ok({
-                let cmp =
-                    self.builder
-                        .build_float_compare(FloatPredicate::UGE, lhs, rhs, "cmpgetmp");
-
-                self.builder
-                    .build_unsigned_int_to_float(cmp, self.context.f64_type(), "booltmp")
-            }),
-            TokenKind::EqualEqual => Ok({
-                let cmp =
-                    self.builder
-                        .build_float_compare(FloatPredicate::UEQ, lhs, rhs, "cmpeqtmp");
-
-                self.builder
-                    .build_unsigned_int_to_float(cmp, self.context.f64_type(), "booltmp")
-            }),
-            TokenKind::BangEqual => Ok({
-                let cmp =
-                    self.builder
-                        .build_float_compare(FloatPredicate::UNE, lhs, rhs, "cmpnetmp");
-
-                self.builder
-                    .build_unsigned_int_to_float(cmp, self.context.f64_type(), "booltmp")
-            }),
-            TokenKind::And => Ok({
-                let lhs = self.builder.build_float_to_unsigned_int(
-                    lhs,
-                    self.context.custom_width_int_type(1),
-                    "lhsbooltmp",
-                );
-                let rhs = self.builder.build_float_to_unsigned_int(
-                    rhs,
-                    self.context.custom_width_int_type(1),
-                    "rhsbooltmp",
-                );
-                let cmp = self.builder.build_and(lhs, rhs, "andtmp");
-                self.builder
-                    .build_unsigned_int_to_float(cmp, self.context.f64_type(), "booltmp")
-            }),
-            TokenKind::Or => Ok({
-                let lhs = self.builder.build_float_to_unsigned_int(
-                    lhs,
-                    self.context.custom_width_int_type(1),
-                    "lhsbooltmp",
-                );
-                let rhs = self.builder.build_float_to_unsigned_int(
-                    rhs,
-                    self.context.custom_width_int_type(1),
-                    "rhsbooltmp",
-                );
-                let cmp = self.builder.build_or(lhs, rhs, "ortmp");
-                self.builder
-                    .build_unsigned_int_to_float(cmp, self.context.f64_type(), "booltmp")
-            }),
+            TokenKind::Plus => match (lhs, rhs) {
+                (BasicValueEnum::IntValue(lhs), BasicValueEnum::IntValue(rhs)) => Ok(
+                    BasicValueEnum::IntValue(self.builder.build_int_add(lhs, rhs, "addtmp")),
+                ),
+                (BasicValueEnum::FloatValue(lhs), BasicValueEnum::FloatValue(rhs)) => Ok(
+                    BasicValueEnum::FloatValue(self.builder.build_float_add(lhs, rhs, "addtmp")),
+                ),
+                _ => Err(CodegenError::DifferentTypesBinOp()),
+            },
+            TokenKind::Minus => match (lhs, rhs) {
+                (BasicValueEnum::IntValue(lhs), BasicValueEnum::IntValue(rhs)) => Ok(
+                    BasicValueEnum::IntValue(self.builder.build_int_sub(lhs, rhs, "subtmp")),
+                ),
+                (BasicValueEnum::FloatValue(lhs), BasicValueEnum::FloatValue(rhs)) => Ok(
+                    BasicValueEnum::FloatValue(self.builder.build_float_sub(lhs, rhs, "subtmp")),
+                ),
+                _ => Err(CodegenError::DifferentTypesBinOp()),
+            },
+            TokenKind::Star => match (lhs, rhs) {
+                (BasicValueEnum::IntValue(lhs), BasicValueEnum::IntValue(rhs)) => Ok(
+                    BasicValueEnum::IntValue(self.builder.build_int_mul(lhs, rhs, "multmp")),
+                ),
+                (BasicValueEnum::FloatValue(lhs), BasicValueEnum::FloatValue(rhs)) => Ok(
+                    BasicValueEnum::FloatValue(self.builder.build_float_sub(lhs, rhs, "multmp")),
+                ),
+                _ => Err(CodegenError::DifferentTypesBinOp()),
+            },
+            TokenKind::Slash => match (lhs, rhs) {
+                (BasicValueEnum::IntValue(lhs), BasicValueEnum::IntValue(rhs)) => Ok(
+                    BasicValueEnum::IntValue(self.builder.build_int_signed_div(lhs, rhs, "divtmp")),
+                ),
+                (BasicValueEnum::FloatValue(lhs), BasicValueEnum::FloatValue(rhs)) => Ok(
+                    BasicValueEnum::FloatValue(self.builder.build_float_div(lhs, rhs, "divtmp")),
+                ),
+                _ => Err(CodegenError::DifferentTypesBinOp()),
+            },
+            TokenKind::Less => match (lhs, rhs) {
+                (BasicValueEnum::IntValue(lhs), BasicValueEnum::IntValue(rhs)) => {
+                    Ok(BasicValueEnum::IntValue(self.builder.build_int_compare(
+                        IntPredicate::ULT,
+                        lhs,
+                        rhs,
+                        "cmplttmp",
+                    )))
+                }
+                (BasicValueEnum::FloatValue(lhs), BasicValueEnum::FloatValue(rhs)) => {
+                    Ok(BasicValueEnum::IntValue(self.builder.build_float_compare(
+                        FloatPredicate::ULT,
+                        lhs,
+                        rhs,
+                        "cmplttmp",
+                    )))
+                }
+                _ => Err(CodegenError::DifferentTypesBinOp()),
+            },
+            TokenKind::Greater => match (lhs, rhs) {
+                (BasicValueEnum::IntValue(lhs), BasicValueEnum::IntValue(rhs)) => {
+                    Ok(BasicValueEnum::IntValue(self.builder.build_int_compare(
+                        IntPredicate::UGT,
+                        lhs,
+                        rhs,
+                        "cmpgttmp",
+                    )))
+                }
+                (BasicValueEnum::FloatValue(lhs), BasicValueEnum::FloatValue(rhs)) => {
+                    Ok(BasicValueEnum::IntValue(self.builder.build_float_compare(
+                        FloatPredicate::UGT,
+                        lhs,
+                        rhs,
+                        "cmpgttmp",
+                    )))
+                }
+                _ => Err(CodegenError::DifferentTypesBinOp()),
+            },
+            TokenKind::LessEqual => match (lhs, rhs) {
+                (BasicValueEnum::IntValue(lhs), BasicValueEnum::IntValue(rhs)) => {
+                    Ok(BasicValueEnum::IntValue(self.builder.build_int_compare(
+                        IntPredicate::ULE,
+                        lhs,
+                        rhs,
+                        "cmplttmp",
+                    )))
+                }
+                (BasicValueEnum::FloatValue(lhs), BasicValueEnum::FloatValue(rhs)) => {
+                    Ok(BasicValueEnum::IntValue(self.builder.build_float_compare(
+                        FloatPredicate::ULE,
+                        lhs,
+                        rhs,
+                        "cmplttmp",
+                    )))
+                }
+                _ => Err(CodegenError::DifferentTypesBinOp()),
+            },
+            TokenKind::GreaterEqual => match (lhs, rhs) {
+                (BasicValueEnum::IntValue(lhs), BasicValueEnum::IntValue(rhs)) => {
+                    Ok(BasicValueEnum::IntValue(self.builder.build_int_compare(
+                        IntPredicate::UGE,
+                        lhs,
+                        rhs,
+                        "cmpgetmp",
+                    )))
+                }
+                (BasicValueEnum::FloatValue(lhs), BasicValueEnum::FloatValue(rhs)) => {
+                    Ok(BasicValueEnum::IntValue(self.builder.build_float_compare(
+                        FloatPredicate::UGE,
+                        lhs,
+                        rhs,
+                        "cmpgetmp",
+                    )))
+                }
+                _ => Err(CodegenError::DifferentTypesBinOp()),
+            },
+            TokenKind::EqualEqual => match (lhs, rhs) {
+                (BasicValueEnum::IntValue(lhs), BasicValueEnum::IntValue(rhs)) => {
+                    Ok(BasicValueEnum::IntValue(self.builder.build_int_compare(
+                        IntPredicate::EQ,
+                        lhs,
+                        rhs,
+                        "cmpeqtmp",
+                    )))
+                }
+                (BasicValueEnum::FloatValue(lhs), BasicValueEnum::FloatValue(rhs)) => {
+                    Ok(BasicValueEnum::IntValue(self.builder.build_float_compare(
+                        FloatPredicate::UEQ,
+                        lhs,
+                        rhs,
+                        "cmpeqtmp",
+                    )))
+                }
+                _ => Err(CodegenError::DifferentTypesBinOp()),
+            },
+            TokenKind::BangEqual => match (lhs, rhs) {
+                (BasicValueEnum::IntValue(lhs), BasicValueEnum::IntValue(rhs)) => {
+                    Ok(BasicValueEnum::IntValue(self.builder.build_int_compare(
+                        IntPredicate::NE,
+                        lhs,
+                        rhs,
+                        "cmpnetmp",
+                    )))
+                }
+                (BasicValueEnum::FloatValue(lhs), BasicValueEnum::FloatValue(rhs)) => {
+                    Ok(BasicValueEnum::IntValue(self.builder.build_float_compare(
+                        FloatPredicate::UNE,
+                        lhs,
+                        rhs,
+                        "cmpnetmp",
+                    )))
+                }
+                _ => Err(CodegenError::DifferentTypesBinOp()),
+            },
+            TokenKind::And => Ok(BasicValueEnum::IntValue(self.builder.build_and(
+                lhs.into_int_value(),
+                rhs.into_int_value(),
+                "andtmp",
+            ))),
+            TokenKind::Or => Ok(BasicValueEnum::IntValue(self.builder.build_or(
+                lhs.into_int_value(),
+                rhs.into_int_value(),
+                "ortmp",
+            ))),
             _ => Err(CodegenError::UndefinedBinaryOperator(format!(
                 "{:#?}",
                 expr.operator.kind
@@ -354,13 +434,13 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         }
     }
 
-    fn compile_unary(&self, _expr: &UnaryExpr) -> CodegenResult<FloatValue<'ctx>> {
+    fn compile_unary(&self, _expr: &UnaryExpr) -> CodegenResult<BasicValueEnum<'ctx>> {
         todo!()
     }
 
-    fn compile_variable(&self, name: &str) -> CodegenResult<FloatValue<'ctx>> {
+    fn compile_variable(&self, name: &str) -> CodegenResult<BasicValueEnum<'ctx>> {
         match self.variables.get(name) {
-            Some(var) => Ok(self.builder.build_load(*var, name).into_float_value()),
+            Some(var) => Ok(self.builder.build_load(*var, name)),
             None => Err(CodegenError::UndeclaredVariableOrOutOfScope(
                 name.to_string(),
             )),
@@ -372,12 +452,13 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         cond: Expr,
         then: Expr,
         else_: Expr,
-    ) -> CodegenResult<FloatValue<'ctx>> {
+    ) -> CodegenResult<BasicValueEnum<'ctx>> {
         let cond = self.compile_expr(&cond)?;
-        let cond = self.builder.build_float_compare(
-            FloatPredicate::ONE,
-            cond,
-            self.context.f64_type().const_float(0.0),
+
+        let cond = self.builder.build_int_compare(
+            IntPredicate::NE,
+            cond.into_int_value(),
+            self.context.custom_width_int_type(1).const_zero(),
             "ifcond",
         );
 
@@ -407,7 +488,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
 
         phi.add_incoming(&[(&then_val, then_bb), (&else_val, else_bb)]);
 
-        Ok(phi.as_basic_value().into_float_value())
+        Ok(phi.as_basic_value())
     }
 
     fn compile_while(&mut self, cond: &Expr, body: &Expr) -> CodegenResult<()> {
@@ -421,12 +502,13 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
 
         self.compile_expr(body)?;
 
-        let end_cond = self.builder.build_float_compare(
-            FloatPredicate::ONE,
-            end_cond,
-            self.context.f64_type().const_float(0.0),
+        let end_cond = self.builder.build_int_compare(
+            IntPredicate::NE,
+            end_cond.into_int_value(),
+            self.context.custom_width_int_type(1).const_zero(),
             "whilecond",
         );
+
         let after_bb = self.context.append_basic_block(parent, "afterwhile");
 
         self.builder
