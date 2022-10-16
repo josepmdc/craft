@@ -58,9 +58,26 @@ impl Parser {
 
     pub fn parse_expr(&mut self) -> ParseResult<Expr> {
         trace!("Parsing expr. Starting at {:#?}", self.current());
-        let expr = self.parse_equality();
+        let expr = self.parse_logical();
         trace!("Parsed expr: {:#?}", expr);
         expr
+    }
+
+    fn parse_logical(&mut self) -> ParseResult<Expr> {
+        trace!("Parsing logical");
+        let mut expr = self.parse_equality()?;
+        while self.match_any([TokenKind::And, TokenKind::Or]) {
+            let operator = self.current().clone();
+            self.advance()?;
+            let right = self.parse_equality()?;
+            expr = Expr::Binary(BinaryExpr {
+                left: Box::new(expr),
+                operator,
+                right: Box::new(right),
+            });
+        }
+        trace!("Parsed logical: {:#?}", expr);
+        Ok(expr)
     }
 
     fn parse_equality(&mut self) -> ParseResult<Expr> {
@@ -109,7 +126,7 @@ impl Parser {
         while self.match_any([TokenKind::Minus, TokenKind::Plus]) {
             let operator = self.current().clone();
             self.advance()?;
-            let right = self.parse_term()?;
+            let right = self.parse_factor()?;
             expr = Expr::Binary(BinaryExpr {
                 left: Box::new(expr),
                 operator,

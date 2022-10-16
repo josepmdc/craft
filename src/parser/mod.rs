@@ -237,7 +237,6 @@ mod tests {
                     value: LiteralValue::Number(2.0),
                 }),
             })),
-            is_anon: false,
             is_builtin: false,
         };
 
@@ -271,7 +270,6 @@ mod tests {
                 ],
             })],
             return_expr: None,
-            is_anon: false,
             is_builtin: false,
         });
 
