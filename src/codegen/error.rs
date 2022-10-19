@@ -16,4 +16,6 @@ pub enum CodegenError {
     OutsideOfFuncion(String),
     #[error("A return expression was expected")]
     ExpectedReturnExpr(),
+    #[error("Operands in binary operation must be of the same type")]
+    DifferentTypesBinOp(),
 }

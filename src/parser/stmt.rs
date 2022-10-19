@@ -1,4 +1,4 @@
-use crate::lex::{Token, TokenKind};
+use crate::lexer::token::{Token, TokenKind};
 
 use super::{error::ParseError, expr::Expr, ParseResult, Parser};
 

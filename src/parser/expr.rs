@@ -1,5 +1,5 @@
 use crate::{
-    lex::{Token, TokenKind},
+    lexer::token::{Token, TokenKind},
     parser::error::{self, ParseError},
 };
 

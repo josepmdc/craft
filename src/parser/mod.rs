@@ -2,7 +2,7 @@ pub mod error;
 pub mod expr;
 pub mod stmt;
 
-use crate::lex::{Token, TokenKind};
+use crate::lexer::token::{Token, TokenKind};
 
 use self::{error::ParseError, stmt::Stmt};
 
@@ -99,7 +99,10 @@ impl Parser {
 #[cfg(test)]
 mod tests {
     use crate::{
-        lex::{Location, Scanner, Token, TokenKind},
+        lexer::{
+            lex::Scanner,
+            token::{Location, Token, TokenKind},
+        },
         parser::{
             expr::{BinaryExpr, Expr},
             stmt::{Function, Prototype, Stmt},

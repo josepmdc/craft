@@ -1,14 +1,14 @@
 mod codegen;
 mod error;
 mod external;
-mod lex;
+mod lexer;
 mod parser;
 
 use std::{env, fs};
 
 use error::CompilerError;
 use inkwell::{context::Context, module::Module, OptimizationLevel};
-use lex::Scanner;
+use lexer::lex::Scanner;
 
 use crate::{
     codegen::Compiler,
