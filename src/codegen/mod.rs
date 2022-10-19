@@ -290,7 +290,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                     BasicValueEnum::IntValue(self.builder.build_int_mul(lhs, rhs, "multmp")),
                 ),
                 (BasicValueEnum::FloatValue(lhs), BasicValueEnum::FloatValue(rhs)) => Ok(
-                    BasicValueEnum::FloatValue(self.builder.build_float_sub(lhs, rhs, "multmp")),
+                    BasicValueEnum::FloatValue(self.builder.build_float_mul(lhs, rhs, "multmp")),
                 ),
                 _ => Err(CodegenError::DifferentTypesBinOp()),
             },
