@@ -493,27 +493,34 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
 
     fn compile_while(&mut self, cond: &Expr, body: &Expr) -> CodegenResult<()> {
         let parent = self.fn_value("while loop".to_string())?;
-        let loop_bb = self.context.append_basic_block(parent, "loop");
 
-        self.builder.build_unconditional_branch(loop_bb);
-        self.builder.position_at_end(loop_bb);
+        let while_condition_block = self.context.append_basic_block(parent, "while_condition");
+        let while_block = self.context.append_basic_block(parent, "while");
+        let after_while_block = self.context.append_basic_block(parent, "afterwhile");
+
+        self.builder
+            .build_unconditional_branch(while_condition_block);
+        self.builder.position_at_end(while_condition_block);
 
         let end_cond = self.compile_expr(cond)?;
-
-        self.compile_expr(body)?;
-
         let end_cond = self.builder.build_int_compare(
             IntPredicate::NE,
             end_cond.into_int_value(),
             self.context.custom_width_int_type(1).const_zero(),
-            "whilecond",
+            "endcond",
         );
 
-        let after_bb = self.context.append_basic_block(parent, "afterwhile");
+        self.builder
+            .build_conditional_branch(end_cond, while_block, after_while_block);
+
+        self.builder.position_at_end(while_block);
+
+        self.compile_expr(body)?;
 
         self.builder
-            .build_conditional_branch(end_cond, loop_bb, after_bb);
-        self.builder.position_at_end(after_bb);
+            .build_unconditional_branch(while_condition_block);
+
+        self.builder.position_at_end(after_while_block);
 
         Ok(())
     }
