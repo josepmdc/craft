@@ -3,7 +3,7 @@ use crate::{
     parser::error::{self, ParseError},
 };
 
-use super::{stmt::Stmt, LiteralValue, ParseResult, Parser};
+use super::{stmt::Stmt, LiteralType, ParseResult, Parser};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct BinaryExpr {
@@ -29,7 +29,7 @@ pub enum Expr {
     Binary(BinaryExpr),
     Unary(UnaryExpr),
     Literal {
-        value: LiteralValue,
+        value: LiteralType,
     },
     Variable(String),
     VariableAssignment {
@@ -176,25 +176,31 @@ impl Parser {
             TokenKind::False => {
                 self.advance()?;
                 Expr::Literal {
-                    value: LiteralValue::Boolean(false),
+                    value: LiteralType::Boolean(false),
                 }
             }
             TokenKind::True => {
                 self.advance()?;
                 Expr::Literal {
-                    value: LiteralValue::Boolean(true),
+                    value: LiteralType::Boolean(true),
                 }
             }
             TokenKind::String { literal } => {
                 self.advance()?;
                 Expr::Literal {
-                    value: LiteralValue::String(literal.clone()),
+                    value: LiteralType::String(literal.clone()),
                 }
             }
-            TokenKind::Number { literal } => {
+            TokenKind::F64(literal) => {
                 self.advance()?;
                 Expr::Literal {
-                    value: LiteralValue::Number(literal.clone()),
+                    value: LiteralType::F64(literal.clone()),
+                }
+            }
+            TokenKind::I64(literal) => {
+                self.advance()?;
+                Expr::Literal {
+                    value: LiteralType::I64(literal.clone()),
                 }
             }
             TokenKind::LeftParen => self.parse_grouping()?,

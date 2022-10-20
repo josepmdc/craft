@@ -9,9 +9,10 @@ use self::{error::ParseError, stmt::Stmt};
 pub type ParseResult<T> = Result<T, ParseError>;
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum LiteralValue {
+pub enum LiteralType {
     Boolean(bool),
-    Number(f64),
+    F64(f64),
+    I64(i64),
     String(String),
 }
 
@@ -106,7 +107,7 @@ mod tests {
         parser::{
             expr::{BinaryExpr, Expr},
             stmt::{Function, Prototype, Stmt},
-            LiteralValue,
+            LiteralType,
         },
     };
 
@@ -123,7 +124,7 @@ mod tests {
 
         let expected_ast = Stmt::Expr(Expr::Binary(BinaryExpr {
             left: Box::new(Expr::Literal {
-                value: LiteralValue::Number(2.0),
+                value: LiteralType::F64(2.0),
             }),
             operator: Token {
                 kind: TokenKind::Plus,
@@ -133,7 +134,7 @@ mod tests {
             right: Box::new(Expr::Binary(BinaryExpr {
                 left: Box::new(Expr::Binary(BinaryExpr {
                     left: Box::new(Expr::Literal {
-                        value: LiteralValue::Number(2.0),
+                        value: LiteralType::F64(2.0),
                     }),
                     operator: Token {
                         kind: TokenKind::Star,
@@ -141,7 +142,7 @@ mod tests {
                         loc: Location { col: 7, line: 1 },
                     },
                     right: Box::new(Expr::Literal {
-                        value: LiteralValue::Number(3.0),
+                        value: LiteralType::F64(3.0),
                     }),
                 })),
                 operator: Token {
@@ -150,7 +151,7 @@ mod tests {
                     loc: Location { col: 11, line: 1 },
                 },
                 right: Box::new(Expr::Literal {
-                    value: LiteralValue::Number(2.0),
+                    value: LiteralType::F64(2.0),
                 }),
             })),
         }));
@@ -172,7 +173,7 @@ mod tests {
             left: Box::new(Expr::Binary(BinaryExpr {
                 left: Box::new(Expr::Binary(BinaryExpr {
                     left: Box::new(Expr::Literal {
-                        value: LiteralValue::Number(2.0),
+                        value: LiteralType::F64(2.0),
                     }),
                     operator: Token {
                         kind: TokenKind::Plus,
@@ -180,7 +181,7 @@ mod tests {
                         loc: Location { col: 4, line: 1 },
                     },
                     right: Box::new(Expr::Literal {
-                        value: LiteralValue::Number(2.0),
+                        value: LiteralType::F64(2.0),
                     }),
                 })),
                 operator: Token {
@@ -189,7 +190,7 @@ mod tests {
                     loc: Location { col: 9, line: 1 },
                 },
                 right: Box::new(Expr::Literal {
-                    value: LiteralValue::Number(3.0),
+                    value: LiteralType::F64(3.0),
                 }),
             })),
             operator: Token {
@@ -198,7 +199,7 @@ mod tests {
                 loc: Location { col: 13, line: 1 },
             },
             right: Box::new(Expr::Literal {
-                value: LiteralValue::Number(2.0),
+                value: LiteralType::F64(2.0),
             }),
         }));
 
@@ -229,7 +230,7 @@ mod tests {
             body: vec![],
             return_expr: Some(Expr::Binary(BinaryExpr {
                 left: Box::new(Expr::Literal {
-                    value: LiteralValue::Number(2.0),
+                    value: LiteralType::F64(2.0),
                 }),
                 operator: Token {
                     kind: TokenKind::Plus,
@@ -237,7 +238,7 @@ mod tests {
                     loc: Location { col: 18, line: 3 },
                 },
                 right: Box::new(Expr::Literal {
-                    value: LiteralValue::Number(2.0),
+                    value: LiteralType::F64(2.0),
                 }),
             })),
             is_builtin: false,

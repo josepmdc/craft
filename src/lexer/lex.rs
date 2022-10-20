@@ -135,21 +135,25 @@ impl Scanner {
             self.advance();
         }
 
-        if self.current() == '.' && self.peek().is_digit(10) {
+        let is_float = self.current() == '.' && self.peek().is_digit(10);
+
+        if is_float {
             self.advance();
             while self.current().is_digit(10) {
                 self.advance();
             }
         }
 
-        let literal: f64 = self
+        let literal = self
             .source
             .get(self.start..self.current_idx)
-            .expect("[Number] Could not get substring")
-            .parse()
-            .expect("[Number] Could not parse number");
+            .expect("[Number] Could not get substring");
 
-        self.add_token(TokenKind::Number { literal });
+        self.add_token(if is_float {
+            TokenKind::F64(literal.parse().expect("[Number] Could not parse number"))
+        } else {
+            TokenKind::I64(literal.parse().expect("[Number] Could not parse number"))
+        });
     }
 
     fn add_string(&mut self) {

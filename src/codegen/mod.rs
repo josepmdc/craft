@@ -16,7 +16,7 @@ use crate::{
     parser::{
         expr::{BinaryExpr, Expr, UnaryExpr},
         stmt::{Function, Prototype, Stmt},
-        LiteralValue,
+        LiteralType,
     },
 };
 
@@ -53,7 +53,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
     }
 
     // Creates a new stack allocation instruction in the entry block of the function.
-    fn create_entry_block_alloca(&self, name: &str) -> PointerValue<'ctx> {
+    fn create_entry_block_alloca(&self, name: &str, value_type: BasicValueEnum) -> PointerValue<'ctx> {
         let builder = self.context.create_builder();
 
         let entry = self.fn_value_opt.unwrap().get_first_basic_block().unwrap();
@@ -63,7 +63,11 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             None => builder.position_at_end(entry),
         }
 
-        builder.build_alloca(self.context.f64_type(), name)
+        match value_type {
+            BasicValueEnum::IntValue(_) => builder.build_alloca(self.context.i32_type(), name),
+            BasicValueEnum::FloatValue(_) => builder.build_alloca(self.context.f64_type(), name),
+            _ => unimplemented!("Only int and float are supported at the moment"),
+        }
     }
 
     fn fn_value(&self, stmt_name: String) -> CodegenResult<FunctionValue<'ctx>> {
@@ -88,7 +92,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         self.variables.reserve(proto.args.len());
 
         for (i, arg) in function.get_param_iter().enumerate() {
-            let alloca = self.create_entry_block_alloca(proto.args[i].as_str());
+            let alloca = self.create_entry_block_alloca(proto.args[i].as_str(), arg);
             self.builder.build_store(alloca, arg);
             self.variables.insert(proto.args[i].clone(), alloca);
         }
@@ -147,8 +151,8 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
     }
 
     fn compile_var_declaration(&mut self, name: String, initializer: &Expr) -> CodegenResult<()> {
-        let alloca = self.create_entry_block_alloca(name.as_str());
         let compiled_expr = self.compile_expr(initializer)?;
+        let alloca = self.create_entry_block_alloca(name.as_str(), compiled_expr);
         self.builder.build_store(alloca, compiled_expr);
         self.variables.remove(&name);
         self.variables.insert(name, alloca);
@@ -252,13 +256,16 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         }
     }
 
-    fn compile_literal(&self, literal: &LiteralValue) -> CodegenResult<BasicValueEnum<'ctx>> {
+    fn compile_literal(&self, literal: &LiteralType) -> CodegenResult<BasicValueEnum<'ctx>> {
         match literal {
-            LiteralValue::Boolean(_) => todo!(),
-            LiteralValue::Number(number) => Ok(BasicValueEnum::FloatValue(
+            LiteralType::Boolean(_) => todo!(),
+            LiteralType::F64(number) => Ok(BasicValueEnum::FloatValue(
                 self.context.f64_type().const_float(*number),
             )),
-            LiteralValue::String(_) => todo!(),
+            LiteralType::I64(number) => Ok(BasicValueEnum::IntValue(
+                self.context.i32_type().const_int(*number as u64, false),
+            )),
+            LiteralType::String(_) => todo!(),
         }
     }
 
