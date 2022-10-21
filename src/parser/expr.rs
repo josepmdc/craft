@@ -185,7 +185,7 @@ impl Parser {
                     value: LiteralType::Boolean(true),
                 }
             }
-            TokenKind::String { literal } => {
+            TokenKind::String(literal) => {
                 self.advance()?;
                 Expr::Literal {
                     value: LiteralType::String(literal.clone()),

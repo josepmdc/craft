@@ -18,4 +18,6 @@ pub enum CodegenError {
     ExpectedReturnExpr(),
     #[error("Operands in binary operation must be of the same type")]
     DifferentTypesBinOp(),
+    #[error("Invalid type {0}")]
+    InvalidType(String),
 }

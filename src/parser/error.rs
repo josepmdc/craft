@@ -18,6 +18,8 @@ pub enum ParseError {
     MissingElse(),
     #[error("Expected '=' after identifier")]
     MissingEquals(),
+    #[error("Expected colon after identifier {0}")]
+    MissingColon(String),
     #[error("Expected ')' or ',' after argument declaration")]
     PrototypeMissingRightParenOrComma(),
     #[error("Unexpected token '{0}'")]
@@ -26,7 +28,7 @@ pub enum ParseError {
     UnexpectedTokenVerbose { expected: String, found: String },
     #[error("Unexpected end of source")]
     UnexpectedEndOfSource(),
-    #[error("Expected identifier in prototype declaration")]
+    #[error("Expected identifier")]
     PrototypeMissingIdentifier(),
 }
 

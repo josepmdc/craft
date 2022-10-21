@@ -13,7 +13,14 @@ pub enum Stmt {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Prototype {
     pub name: String,
-    pub args: Vec<String>,
+    pub params: Vec<Variable>,
+    pub return_type: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub struct Variable {
+    pub name: String,
+    pub type_: String,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -86,36 +93,63 @@ impl Parser {
 
         self.advance()?;
 
-        match self.current().kind {
-            TokenKind::LeftParen => self.advance()?,
-            _ => return Err(ParseError::MissingLeftParen()),
+        let params = self.parse_prototype_params()?;
+
+        println!("=> => => {:#?}", self.current());
+
+        let return_type = match self.current().kind.clone() {
+            TokenKind::Identifier(identifier) => {
+                self.advance()?;
+                identifier.clone()
+            }
+            _ => "void".to_string(),
         };
 
-        if self.current().kind == TokenKind::RightParen {
-            self.advance()?;
-            return Ok(Prototype { name, args: vec![] });
-        }
-
-        let args = self.parse_prototype_args()?;
-
-        let proto = Prototype { name, args };
+        let proto = Prototype {
+            name,
+            params,
+            return_type,
+        };
 
         trace!("Parsed prototype: {:#?}", proto);
 
         Ok(proto)
     }
 
-    fn parse_prototype_args(&mut self) -> ParseResult<Vec<String>> {
-        let mut args = vec![];
+    fn parse_prototype_params(&mut self) -> ParseResult<Vec<Variable>> {
+        let mut params = vec![];
+
+        self.consume(TokenKind::LeftParen, ParseError::MissingLeftParen())?;
+
+        if self.current().kind == TokenKind::RightParen {
+            self.advance()?;
+            return Ok(vec![]);
+        }
 
         loop {
+            let mut param = Variable::default();
             match &self.current().kind {
                 TokenKind::Identifier(id) => {
-                    args.push(id.clone());
+                    param.name = id.clone();
                     self.advance()?;
                 }
-                _ => return Err(ParseError::PrototypeMissingRightParenOrComma()),
+                _ => return Err(ParseError::PrototypeMissingIdentifier()),
             }
+
+            self.consume(
+                TokenKind::Colon,
+                ParseError::MissingColon(param.name.clone()),
+            )?;
+
+            match &self.current().kind {
+                TokenKind::Identifier(id) => {
+                    param.type_ = id.clone();
+                    self.advance()?;
+                }
+                _ => return Err(ParseError::PrototypeMissingIdentifier()),
+            }
+
+            params.push(param);
 
             match self.current().kind {
                 TokenKind::RightParen => {
@@ -127,9 +161,9 @@ impl Parser {
             };
         }
 
-        trace!("Parsed args: {:#?}", args);
+        trace!("Parsed args: {:#?}", params);
 
-        Ok(args)
+        Ok(params)
     }
 
     fn parse_while(&mut self) -> ParseResult<Stmt> {

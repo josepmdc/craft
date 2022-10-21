@@ -39,6 +39,7 @@ impl Scanner {
     fn scan_token(&mut self) {
         match self.advance() {
             ';' => self.add_token(TokenKind::Semicolon),
+            ':' => self.add_token(TokenKind::Colon),
             '(' => self.add_token(TokenKind::LeftParen),
             ')' => self.add_token(TokenKind::RightParen),
             '{' => self.add_token(TokenKind::LeftBrace),
@@ -177,7 +178,7 @@ impl Scanner {
             .expect("[String] Could not get substring")
             .to_string();
 
-        self.add_token(TokenKind::String { literal });
+        self.add_token(TokenKind::String(literal));
     }
 
     fn add_identifier(&mut self) {
@@ -199,6 +200,11 @@ impl Scanner {
     }
 
     fn advance(&mut self) -> char {
+        trace!(
+            "Advanced from \"{}\" to \"{}\"",
+            self.current(),
+            self.peek(),
+        );
         self.col += 1;
         self.current_idx += 1;
         self.source

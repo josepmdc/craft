@@ -2,7 +2,7 @@ use std::ffi::{c_void, CStr};
 
 use llvm_sys::support::LLVMAddSymbol;
 
-use crate::parser::stmt::{Function, Prototype, Stmt};
+use crate::parser::stmt::{Function, Prototype, Stmt, Variable};
 
 macro_rules! cstr {
     ($str:expr) => {
@@ -29,16 +29,31 @@ pub fn shim_builtin_functions() {
 
 pub fn builtin_funtions() -> Vec<Stmt> {
     vec![
-        Stmt::Function(new_builtin_fn("print", vec!["x".to_string()])),
-        Stmt::Function(new_builtin_fn("println", vec!["x".to_string()])),
+        Stmt::Function(new_builtin_fn(
+            "print",
+            vec![Variable {
+                name: "x".to_string(),
+                type_: "f64".to_string(),
+            }],
+            "void".to_string(),
+        )),
+        Stmt::Function(new_builtin_fn(
+            "println",
+            vec![Variable {
+                name: "x".to_string(),
+                type_: "f64".to_string(),
+            }],
+            "void".to_string(),
+        )),
     ]
 }
 
-fn new_builtin_fn(name: &str, args: Vec<String>) -> Function {
+fn new_builtin_fn(name: &str, params: Vec<Variable>, return_type: String) -> Function {
     Function {
         prototype: Prototype {
             name: name.to_string(),
-            args,
+            params,
+            return_type,
         },
         body: vec![],
         return_expr: None,
