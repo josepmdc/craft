@@ -16,6 +16,27 @@ pub enum LiteralType {
     String(String),
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Type {
+    I64,
+    F64,
+    String,
+    Struct(String),
+    Void,
+}
+
+impl Default for Type {
+    fn default() -> Self {
+        Self::I64
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub struct Variable {
+    pub name: String,
+    pub type_: Type,
+}
+
 pub struct Parser {
     tokens: Vec<Token>,
     current_index: usize,
@@ -44,6 +65,15 @@ impl Parser {
             _ => self.parse_toplevel_expr()?,
         };
         Ok(stmt)
+    }
+
+    fn parse_type(&self, id: String) -> Type {
+        match id.as_str() {
+            "i64" => Type::I64,
+            "f64" => Type::F64,
+            "string" => Type::String,
+            _ => Type::Struct(id),
+        }
     }
 
     fn match_any<const L: usize>(&self, types: [TokenKind; L]) -> bool {
@@ -93,7 +123,7 @@ impl Parser {
     }
 
     fn is_at_end(&self) -> bool {
-        self.current().kind == TokenKind::EOF
+        self.current().kind == TokenKind::Eof
     }
 }
 
@@ -106,8 +136,8 @@ mod tests {
         },
         parser::{
             expr::{BinaryExpr, Expr},
-            stmt::{Function, Prototype, Stmt, Variable},
-            LiteralType,
+            stmt::{Function, Prototype, Stmt},
+            LiteralType, Type, Variable,
         },
     };
 
@@ -229,14 +259,14 @@ mod tests {
                 params: vec![
                     Variable {
                         name: "a".to_string(),
-                        type_: "i64".to_string(),
+                        type_: Type::I64,
                     },
                     Variable {
                         name: "b".to_string(),
-                        type_: "i64".to_string(),
+                        type_: Type::I64,
                     },
                 ],
-                return_type: "i64".to_string(),
+                return_type: Type::I64,
             },
             body: vec![],
             return_expr: Some(Expr::Binary(BinaryExpr {
@@ -276,7 +306,7 @@ mod tests {
             prototype: Prototype {
                 name: "main".to_string(),
                 params: vec![],
-                return_type: "void".to_string(),
+                return_type: Type::Void,
             },
             body: vec![Stmt::Expr(Expr::FnCall {
                 fn_name: "some_fn".to_string(),

@@ -29,7 +29,7 @@ impl Scanner {
             self.scan_token();
         }
         self.tokens.push(Token::new(
-            TokenKind::EOF,
+            TokenKind::Eof,
             "",
             Location::new(self.col, self.line),
         ));
@@ -95,7 +95,7 @@ impl Scanner {
             ' ' | '\r' | '\t' => (),
             '\n' => self.add_new_line(),
             c => {
-                if c.is_digit(10) {
+                if c.is_ascii_digit() {
                     self.add_number();
                 } else if c.is_alphabetic() {
                     self.add_identifier();
@@ -132,15 +132,15 @@ impl Scanner {
     }
 
     fn add_number(&mut self) {
-        while self.current().is_digit(10) {
+        while self.current().is_ascii_digit() {
             self.advance();
         }
 
-        let is_float = self.current() == '.' && self.peek().is_digit(10);
+        let is_float = self.current() == '.' && self.peek().is_ascii_digit();
 
         if is_float {
             self.advance();
-            while self.current().is_digit(10) {
+            while self.current().is_ascii_digit() {
                 self.advance();
             }
         }
@@ -191,7 +191,9 @@ impl Scanner {
             .get(self.start..self.current_idx)
             .expect("Could not get identifier");
 
-        self.add_token(Scanner::match_keyword(id).unwrap_or(TokenKind::Identifier(id.to_string())));
+        self.add_token(
+            Scanner::match_keyword(id).unwrap_or_else(|| TokenKind::Identifier(id.to_string())),
+        );
     }
 
     fn add_new_line(&mut self) {

@@ -12,7 +12,7 @@ impl Location {
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum TokenKind {
-    EOF,
+    Eof,
     Fn,
     Semicolon,
     Colon,

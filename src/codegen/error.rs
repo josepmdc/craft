@@ -1,5 +1,7 @@
 use thiserror::Error;
 
+use crate::parser::Type;
+
 #[derive(Error, Debug)]
 pub enum CodegenError {
     #[error("Undeclared variable {0} or out of scope")]
@@ -18,6 +20,6 @@ pub enum CodegenError {
     ExpectedReturnExpr(),
     #[error("Operands in binary operation must be of the same type")]
     DifferentTypesBinOp(),
-    #[error("Invalid type {0}")]
-    InvalidType(String),
+    #[error("Invalid type {0:#?}")]
+    InvalidType(Type),
 }

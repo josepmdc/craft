@@ -1,6 +1,6 @@
 use crate::lexer::token::{Token, TokenKind};
 
-use super::{error::ParseError, expr::Expr, ParseResult, Parser};
+use super::{error::ParseError, expr::Expr, ParseResult, Parser, Type, Variable};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Stmt {
@@ -14,13 +14,7 @@ pub enum Stmt {
 pub struct Prototype {
     pub name: String,
     pub params: Vec<Variable>,
-    pub return_type: String,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Default)]
-pub struct Variable {
-    pub name: String,
-    pub type_: String,
+    pub return_type: Type,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -96,11 +90,11 @@ impl Parser {
         let params = self.parse_prototype_params()?;
 
         let return_type = match self.current().kind.clone() {
-            TokenKind::Identifier(identifier) => {
+            TokenKind::Identifier(id) => {
                 self.advance()?;
-                identifier.clone()
+                self.parse_type(id)
             }
-            _ => "void".to_string(),
+            _ => Type::Void,
         };
 
         let proto = Prototype {
@@ -141,7 +135,7 @@ impl Parser {
 
             match &self.current().kind {
                 TokenKind::Identifier(id) => {
-                    param.type_ = id.clone();
+                    param.type_ = self.parse_type(id.clone());
                     self.advance()?;
                 }
                 _ => return Err(ParseError::PrototypeMissingIdentifier()),

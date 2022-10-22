@@ -16,7 +16,7 @@ use crate::{
     parser::{
         expr::{BinaryExpr, Expr, UnaryExpr},
         stmt::{Function, Prototype, Stmt},
-        LiteralType,
+        LiteralType, Type,
     },
 };
 
@@ -42,9 +42,9 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         function: &'a Function,
     ) -> CodegenResult<FunctionValue<'ctx>> {
         let mut compiler = Self {
-            context: &context,
-            builder: &builder,
-            module: &module,
+            context,
+            builder,
+            module,
             function,
             variables: HashMap::new(),
             fn_value_opt: None,
@@ -106,7 +106,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             None => self.builder.build_return(None),
         };
 
-        if std::env::args().any(|x| x == "-cc".to_string()) {
+        if std::env::args().any(|x| x == "-cc") {
             function.print_to_stderr();
         }
 
@@ -125,18 +125,18 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         let param_types = proto
             .params
             .iter()
-            .map(|param| match param.type_.as_str() {
-                "f64" => Ok(self.context.f64_type().into()),
-                "i64" => Ok(self.context.i64_type().into()),
-                invalid_type => return Err(CodegenError::InvalidType(invalid_type.to_string())),
+            .map(|param| match &param.type_ {
+                Type::F64 => Ok(self.context.f64_type().into()),
+                Type::I64 => Ok(self.context.i64_type().into()),
+                invalid_type => Err(CodegenError::InvalidType(invalid_type.clone())),
             })
             .collect::<CodegenResult<Vec<BasicMetadataTypeEnum>>>()?;
 
-        let fn_type = match proto.return_type.as_str() {
-            "f64" => self.context.f64_type().fn_type(&param_types, false),
-            "i64" => self.context.i64_type().fn_type(&param_types, false),
-            "void" => self.context.void_type().fn_type(&param_types, false),
-            invalid_type => return Err(CodegenError::InvalidType(invalid_type.to_string())),
+        let fn_type = match &proto.return_type {
+            Type::F64 => self.context.f64_type().fn_type(&param_types, false),
+            Type::I64 => self.context.i64_type().fn_type(&param_types, false),
+            Type::Void => self.context.void_type().fn_type(&param_types, false),
+            invalid_type => return Err(CodegenError::InvalidType(invalid_type.clone())),
         };
 
         // Create the function
@@ -185,7 +185,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         let var = self
             .variables
             .get(name)
-            .ok_or(CodegenError::UndeclaredVariableOrOutOfScope(name.clone()))?;
+            .ok_or_else(|| CodegenError::UndeclaredVariableOrOutOfScope(name.clone()))?;
         self.builder.build_store(*var, val);
         Ok(val)
     }
@@ -200,7 +200,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             Expr::Conditional { cond, then, else_ } => {
                 self.compile_conditional(*cond.clone(), *then.clone(), *else_.clone())
             }
-            Expr::VariableAssignment { id, rhs } => self.compile_var_assignment(id, &*rhs),
+            Expr::VariableAssignment { id, rhs } => self.compile_var_assignment(id, rhs),
             Expr::Block(block) => self.compile_expr_block(
                 &block.body,
                 *block
@@ -213,16 +213,16 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
 
     fn compile_expr_block(
         &mut self,
-        body: &Vec<Stmt>,
+        body: &[Stmt],
         return_expr: Expr,
     ) -> CodegenResult<BasicValueEnum<'ctx>> {
         self.compile_body(body)?;
-        Ok(self.compile_expr(&return_expr)?)
+        self.compile_expr(&return_expr)
     }
 
     fn compile_block(
         &mut self,
-        body: &Vec<Stmt>,
+        body: &[Stmt],
         return_expr: Option<Expr>,
     ) -> CodegenResult<Option<BasicValueEnum<'ctx>>> {
         self.compile_body(body)?;
@@ -233,7 +233,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         Ok(compiled_return)
     }
 
-    fn compile_body(&mut self, body: &Vec<Stmt>) -> CodegenResult<()> {
+    fn compile_body(&mut self, body: &[Stmt]) -> CodegenResult<()> {
         for stmt in body.iter() {
             self.compile_stmt(stmt)?;
         }
