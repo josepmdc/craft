@@ -95,8 +95,6 @@ impl Parser {
 
         let params = self.parse_prototype_params()?;
 
-        println!("=> => => {:#?}", self.current());
-
         let return_type = match self.current().kind.clone() {
             TokenKind::Identifier(identifier) => {
                 self.advance()?;

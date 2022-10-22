@@ -106,7 +106,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             None => self.builder.build_return(None),
         };
 
-        if std::env::args().any(|x| x == "-c".to_string()) {
+        if std::env::args().any(|x| x == "-cc".to_string()) {
             function.print_to_stderr();
         }
 
@@ -508,7 +508,15 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
 
         self.builder.position_at_end(cont_bb);
 
-        let phi = self.builder.build_phi(self.context.f64_type(), "iftmp");
+        let phi = match (then_val, else_val) {
+            (BasicValueEnum::IntValue(_), BasicValueEnum::IntValue(_)) => {
+                self.builder.build_phi(self.context.i64_type(), "iftmp")
+            }
+            (BasicValueEnum::FloatValue(_), BasicValueEnum::FloatValue(_)) => {
+                self.builder.build_phi(self.context.f64_type(), "iftmp")
+            }
+            _ => unimplemented!("Only int and float are supported at the moment"),
+        };
 
         phi.add_incoming(&[(&then_val, then_bb), (&else_val, else_bb)]);
 
