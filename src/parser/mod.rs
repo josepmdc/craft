@@ -16,6 +16,27 @@ pub enum LiteralType {
     String(String),
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Type {
+    I64,
+    F64,
+    String,
+    Struct(String),
+    Void,
+}
+
+impl Default for Type {
+    fn default() -> Self {
+        Self::I64
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub struct Variable {
+    pub name: String,
+    pub type_: Type,
+}
+
 pub struct Parser {
     tokens: Vec<Token>,
     current_index: usize,
@@ -46,6 +67,15 @@ impl Parser {
         Ok(stmt)
     }
 
+    fn parse_type(&self, id: String) -> Type {
+        match id.as_str() {
+            "i64" => Type::I64,
+            "f64" => Type::F64,
+            "string" => Type::String,
+            _ => Type::Struct(id),
+        }
+    }
+
     fn match_any<const L: usize>(&self, types: [TokenKind; L]) -> bool {
         types.iter().any(|t| self.current_is(t.clone()))
     }
@@ -71,7 +101,7 @@ impl Parser {
         }
 
         trace!(
-            "Advanced from \"{}\" to \"{}\"",
+            "[PARSER] Advanced from \"{}\" to \"{}\"",
             self.current().lexeme,
             self.tokens[self.current_index + 1].lexeme,
         );
@@ -93,7 +123,7 @@ impl Parser {
     }
 
     fn is_at_end(&self) -> bool {
-        self.current().kind == TokenKind::EOF
+        self.current().kind == TokenKind::Eof
     }
 }
 
@@ -107,7 +137,7 @@ mod tests {
         parser::{
             expr::{BinaryExpr, Expr},
             stmt::{Function, Prototype, Stmt},
-            LiteralType,
+            LiteralType, Type, Variable,
         },
     };
 
@@ -124,7 +154,7 @@ mod tests {
 
         let expected_ast = Stmt::Expr(Expr::Binary(BinaryExpr {
             left: Box::new(Expr::Literal {
-                value: LiteralType::F64(2.0),
+                value: LiteralType::I64(2),
             }),
             operator: Token {
                 kind: TokenKind::Plus,
@@ -134,7 +164,7 @@ mod tests {
             right: Box::new(Expr::Binary(BinaryExpr {
                 left: Box::new(Expr::Binary(BinaryExpr {
                     left: Box::new(Expr::Literal {
-                        value: LiteralType::F64(2.0),
+                        value: LiteralType::I64(2),
                     }),
                     operator: Token {
                         kind: TokenKind::Star,
@@ -142,7 +172,7 @@ mod tests {
                         loc: Location { col: 7, line: 1 },
                     },
                     right: Box::new(Expr::Literal {
-                        value: LiteralType::F64(3.0),
+                        value: LiteralType::I64(3),
                     }),
                 })),
                 operator: Token {
@@ -151,7 +181,7 @@ mod tests {
                     loc: Location { col: 11, line: 1 },
                 },
                 right: Box::new(Expr::Literal {
-                    value: LiteralType::F64(2.0),
+                    value: LiteralType::I64(2),
                 }),
             })),
         }));
@@ -173,7 +203,7 @@ mod tests {
             left: Box::new(Expr::Binary(BinaryExpr {
                 left: Box::new(Expr::Binary(BinaryExpr {
                     left: Box::new(Expr::Literal {
-                        value: LiteralType::F64(2.0),
+                        value: LiteralType::I64(2),
                     }),
                     operator: Token {
                         kind: TokenKind::Plus,
@@ -181,7 +211,7 @@ mod tests {
                         loc: Location { col: 4, line: 1 },
                     },
                     right: Box::new(Expr::Literal {
-                        value: LiteralType::F64(2.0),
+                        value: LiteralType::I64(2),
                     }),
                 })),
                 operator: Token {
@@ -190,7 +220,7 @@ mod tests {
                     loc: Location { col: 9, line: 1 },
                 },
                 right: Box::new(Expr::Literal {
-                    value: LiteralType::F64(3.0),
+                    value: LiteralType::I64(3),
                 }),
             })),
             operator: Token {
@@ -199,7 +229,7 @@ mod tests {
                 loc: Location { col: 13, line: 1 },
             },
             right: Box::new(Expr::Literal {
-                value: LiteralType::F64(2.0),
+                value: LiteralType::I64(2),
             }),
         }));
 
@@ -210,7 +240,7 @@ mod tests {
     #[test]
     fn parse_function_definition() {
         let src = r#"
-            fn main(a, b) {
+            fn sum(a: i64, b: i64) i64 {
                 2 + 2 
             }
         "#
@@ -221,16 +251,27 @@ mod tests {
         let mut parser = Parser::new(tokens.to_vec());
         let actual_ast = parser.parse().unwrap();
         trace!("AST for {}: \n{:#?}", src, actual_ast);
+        println!("AST for {}: \n{:#?}", src, actual_ast);
 
         let expected_ast = Function {
             prototype: Prototype {
-                name: "main".to_string(),
-                args: vec!["a".to_string(), "b".to_string()],
+                name: "sum".to_string(),
+                params: vec![
+                    Variable {
+                        name: "a".to_string(),
+                        type_: Type::I64,
+                    },
+                    Variable {
+                        name: "b".to_string(),
+                        type_: Type::I64,
+                    },
+                ],
+                return_type: Type::I64,
             },
             body: vec![],
             return_expr: Some(Expr::Binary(BinaryExpr {
                 left: Box::new(Expr::Literal {
-                    value: LiteralType::F64(2.0),
+                    value: LiteralType::I64(2),
                 }),
                 operator: Token {
                     kind: TokenKind::Plus,
@@ -238,7 +279,7 @@ mod tests {
                     loc: Location { col: 18, line: 3 },
                 },
                 right: Box::new(Expr::Literal {
-                    value: LiteralType::F64(2.0),
+                    value: LiteralType::I64(2),
                 }),
             })),
             is_builtin: false,
@@ -264,7 +305,8 @@ mod tests {
         let expected_ast = Stmt::Function(Function {
             prototype: Prototype {
                 name: "main".to_string(),
-                args: vec![],
+                params: vec![],
+                return_type: Type::Void,
             },
             body: vec![Stmt::Expr(Expr::FnCall {
                 fn_name: "some_fn".to_string(),

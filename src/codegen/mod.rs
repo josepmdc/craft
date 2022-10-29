@@ -16,7 +16,7 @@ use crate::{
     parser::{
         expr::{BinaryExpr, Expr, UnaryExpr},
         stmt::{Function, Prototype, Stmt},
-        LiteralType,
+        LiteralType, Type,
     },
 };
 
@@ -42,9 +42,9 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         function: &'a Function,
     ) -> CodegenResult<FunctionValue<'ctx>> {
         let mut compiler = Self {
-            context: &context,
-            builder: &builder,
-            module: &module,
+            context,
+            builder,
+            module,
             function,
             variables: HashMap::new(),
             fn_value_opt: None,
@@ -53,7 +53,11 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
     }
 
     // Creates a new stack allocation instruction in the entry block of the function.
-    fn create_entry_block_alloca(&self, name: &str, value_type: BasicValueEnum) -> PointerValue<'ctx> {
+    fn create_entry_block_alloca(
+        &self,
+        name: &str,
+        value_type: BasicValueEnum,
+    ) -> PointerValue<'ctx> {
         let builder = self.context.create_builder();
 
         let entry = self.fn_value_opt.unwrap().get_first_basic_block().unwrap();
@@ -64,7 +68,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         }
 
         match value_type {
-            BasicValueEnum::IntValue(_) => builder.build_alloca(self.context.i32_type(), name),
+            BasicValueEnum::IntValue(_) => builder.build_alloca(self.context.i64_type(), name),
             BasicValueEnum::FloatValue(_) => builder.build_alloca(self.context.f64_type(), name),
             _ => unimplemented!("Only int and float are supported at the moment"),
         }
@@ -89,18 +93,22 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
 
         self.fn_value_opt = Some(function);
 
-        self.variables.reserve(proto.args.len());
+        self.variables.reserve(proto.params.len());
 
         for (i, arg) in function.get_param_iter().enumerate() {
-            let alloca = self.create_entry_block_alloca(proto.args[i].as_str(), arg);
+            let alloca = self.create_entry_block_alloca(proto.params[i].name.as_str(), arg);
             self.builder.build_store(alloca, arg);
-            self.variables.insert(proto.args[i].clone(), alloca);
+            self.variables.insert(proto.params[i].name.clone(), alloca);
         }
 
         match self.compile_block(&self.function.body, self.function.return_expr.clone())? {
             Some(ret) => self.builder.build_return(Some(&ret)),
             None => self.builder.build_return(None),
         };
+
+        if std::env::args().any(|x| x == "-cc") {
+            function.print_to_stderr();
+        }
 
         if function.verify(true) {
             Ok(function)
@@ -113,22 +121,30 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
     }
 
     fn compile_prototype(&self, proto: &Prototype) -> CodegenResult<FunctionValue<'ctx>> {
-        // Creates n 64 bit floats, since, for the moment, only floats can be used as args (being n the number of args)
-        let args_types = std::iter::repeat(self.context.f64_type())
-            .take(proto.args.len())
-            .map(|f| f.into())
-            .collect::<Vec<BasicMetadataTypeEnum>>();
+        let param_types = proto
+            .params
+            .iter()
+            .map(|param| match &param.type_ {
+                Type::F64 => Ok(self.context.f64_type().into()),
+                Type::I64 => Ok(self.context.i64_type().into()),
+                invalid_type => Err(CodegenError::InvalidType(invalid_type.clone())),
+            })
+            .collect::<CodegenResult<Vec<BasicMetadataTypeEnum>>>()?;
 
-        let args_types = args_types.as_slice();
+        let fn_type = match &proto.return_type {
+            Type::F64 => self.context.f64_type().fn_type(&param_types, false),
+            Type::I64 => self.context.i64_type().fn_type(&param_types, false),
+            Type::Void => self.context.void_type().fn_type(&param_types, false),
+            invalid_type => return Err(CodegenError::InvalidType(invalid_type.clone())),
+        };
 
         // Create the function
-        let fn_type = self.context.f64_type().fn_type(args_types, false);
         // Add function to module symbol table
         let fn_val = self.module.add_function(proto.name.as_str(), fn_type, None);
 
-        // Set names for all arguments.
-        for (i, arg) in fn_val.get_param_iter().enumerate() {
-            arg.into_float_value().set_name(proto.args[i].as_str());
+        // Set names for all params.
+        for (i, param) in fn_val.get_param_iter().enumerate() {
+            param.set_name(proto.params[i].name.as_str());
         }
 
         Ok(fn_val)
@@ -168,7 +184,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         let var = self
             .variables
             .get(name)
-            .ok_or(CodegenError::UndeclaredVariableOrOutOfScope(name.clone()))?;
+            .ok_or_else(|| CodegenError::UndeclaredVariableOrOutOfScope(name.clone()))?;
         self.builder.build_store(*var, val);
         Ok(val)
     }
@@ -183,7 +199,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             Expr::Conditional { cond, then, else_ } => {
                 self.compile_conditional(*cond.clone(), *then.clone(), *else_.clone())
             }
-            Expr::VariableAssignment { id, rhs } => self.compile_var_assignment(id, &*rhs),
+            Expr::VariableAssignment { id, rhs } => self.compile_var_assignment(id, rhs),
             Expr::Block(block) => self.compile_expr_block(
                 &block.body,
                 *block
@@ -196,16 +212,16 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
 
     fn compile_expr_block(
         &mut self,
-        body: &Vec<Stmt>,
+        body: &[Stmt],
         return_expr: Expr,
     ) -> CodegenResult<BasicValueEnum<'ctx>> {
         self.compile_body(body)?;
-        Ok(self.compile_expr(&return_expr)?)
+        self.compile_expr(&return_expr)
     }
 
     fn compile_block(
         &mut self,
-        body: &Vec<Stmt>,
+        body: &[Stmt],
         return_expr: Option<Expr>,
     ) -> CodegenResult<Option<BasicValueEnum<'ctx>>> {
         self.compile_body(body)?;
@@ -216,7 +232,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         Ok(compiled_return)
     }
 
-    fn compile_body(&mut self, body: &Vec<Stmt>) -> CodegenResult<()> {
+    fn compile_body(&mut self, body: &[Stmt]) -> CodegenResult<()> {
         for stmt in body.iter() {
             self.compile_stmt(stmt)?;
         }
@@ -263,7 +279,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                 self.context.f64_type().const_float(*number),
             )),
             LiteralType::I64(number) => Ok(BasicValueEnum::IntValue(
-                self.context.i32_type().const_int(*number as u64, false),
+                self.context.i64_type().const_int(*number as u64, false),
             )),
             LiteralType::String(_) => todo!(),
         }
@@ -491,7 +507,15 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
 
         self.builder.position_at_end(cont_bb);
 
-        let phi = self.builder.build_phi(self.context.f64_type(), "iftmp");
+        let phi = match (then_val, else_val) {
+            (BasicValueEnum::IntValue(_), BasicValueEnum::IntValue(_)) => {
+                self.builder.build_phi(self.context.i64_type(), "iftmp")
+            }
+            (BasicValueEnum::FloatValue(_), BasicValueEnum::FloatValue(_)) => {
+                self.builder.build_phi(self.context.f64_type(), "iftmp")
+            }
+            _ => unimplemented!("Only int and float are supported at the moment"),
+        };
 
         phi.add_incoming(&[(&then_val, then_bb), (&else_val, else_bb)]);
 

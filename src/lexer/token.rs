@@ -12,9 +12,10 @@ impl Location {
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum TokenKind {
-    EOF,
+    Eof,
     Fn,
     Semicolon,
+    Colon,
     Comma,
     LeftParen,
     RightParen,
@@ -22,7 +23,7 @@ pub enum TokenKind {
     RightBrace,
     F64(f64),
     I64(i64),
-    String { literal: String },
+    String(String),
     Plus,
     Minus,
     Star,

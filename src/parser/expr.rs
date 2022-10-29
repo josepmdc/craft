@@ -185,22 +185,22 @@ impl Parser {
                     value: LiteralType::Boolean(true),
                 }
             }
-            TokenKind::String { literal } => {
+            TokenKind::String(literal) => {
                 self.advance()?;
                 Expr::Literal {
-                    value: LiteralType::String(literal.clone()),
+                    value: LiteralType::String(literal),
                 }
             }
             TokenKind::F64(literal) => {
                 self.advance()?;
                 Expr::Literal {
-                    value: LiteralType::F64(literal.clone()),
+                    value: LiteralType::F64(literal),
                 }
             }
             TokenKind::I64(literal) => {
                 self.advance()?;
                 Expr::Literal {
-                    value: LiteralType::I64(literal.clone()),
+                    value: LiteralType::I64(literal),
                 }
             }
             TokenKind::LeftParen => self.parse_grouping()?,

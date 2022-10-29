@@ -29,7 +29,7 @@ impl Scanner {
             self.scan_token();
         }
         self.tokens.push(Token::new(
-            TokenKind::EOF,
+            TokenKind::Eof,
             "",
             Location::new(self.col, self.line),
         ));
@@ -39,6 +39,7 @@ impl Scanner {
     fn scan_token(&mut self) {
         match self.advance() {
             ';' => self.add_token(TokenKind::Semicolon),
+            ':' => self.add_token(TokenKind::Colon),
             '(' => self.add_token(TokenKind::LeftParen),
             ')' => self.add_token(TokenKind::RightParen),
             '{' => self.add_token(TokenKind::LeftBrace),
@@ -94,7 +95,7 @@ impl Scanner {
             ' ' | '\r' | '\t' => (),
             '\n' => self.add_new_line(),
             c => {
-                if c.is_digit(10) {
+                if c.is_ascii_digit() {
                     self.add_number();
                 } else if c.is_alphabetic() {
                     self.add_identifier();
@@ -131,15 +132,15 @@ impl Scanner {
     }
 
     fn add_number(&mut self) {
-        while self.current().is_digit(10) {
+        while self.current().is_ascii_digit() {
             self.advance();
         }
 
-        let is_float = self.current() == '.' && self.peek().is_digit(10);
+        let is_float = self.current() == '.' && self.peek().is_ascii_digit();
 
         if is_float {
             self.advance();
-            while self.current().is_digit(10) {
+            while self.current().is_ascii_digit() {
                 self.advance();
             }
         }
@@ -177,7 +178,7 @@ impl Scanner {
             .expect("[String] Could not get substring")
             .to_string();
 
-        self.add_token(TokenKind::String { literal });
+        self.add_token(TokenKind::String(literal));
     }
 
     fn add_identifier(&mut self) {
@@ -190,7 +191,9 @@ impl Scanner {
             .get(self.start..self.current_idx)
             .expect("Could not get identifier");
 
-        self.add_token(Scanner::match_keyword(id).unwrap_or(TokenKind::Identifier(id.to_string())));
+        self.add_token(
+            Scanner::match_keyword(id).unwrap_or_else(|| TokenKind::Identifier(id.to_string())),
+        );
     }
 
     fn add_new_line(&mut self) {
@@ -199,6 +202,11 @@ impl Scanner {
     }
 
     fn advance(&mut self) -> char {
+        trace!(
+            "[LEXER] Advanced from \"{}\" to \"{}\"",
+            self.current(),
+            self.peek(),
+        );
         self.col += 1;
         self.current_idx += 1;
         self.source
