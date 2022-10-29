@@ -121,7 +121,6 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
     }
 
     fn compile_prototype(&self, proto: &Prototype) -> CodegenResult<FunctionValue<'ctx>> {
-        // Creates n 64 bit floats, since, for the moment, only floats can be used as args (being n the number of args)
         let param_types = proto
             .params
             .iter()

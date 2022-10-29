@@ -203,7 +203,7 @@ impl Scanner {
 
     fn advance(&mut self) -> char {
         trace!(
-            "Advanced from \"{}\" to \"{}\"",
+            "[LEXER] Advanced from \"{}\" to \"{}\"",
             self.current(),
             self.peek(),
         );

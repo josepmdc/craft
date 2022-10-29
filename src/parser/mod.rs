@@ -101,7 +101,7 @@ impl Parser {
         }
 
         trace!(
-            "Advanced from \"{}\" to \"{}\"",
+            "[PARSER] Advanced from \"{}\" to \"{}\"",
             self.current().lexeme,
             self.tokens[self.current_index + 1].lexeme,
         );
