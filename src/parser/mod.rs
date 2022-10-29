@@ -1,6 +1,7 @@
 pub mod error;
 pub mod expr;
 pub mod stmt;
+pub mod structs;
 
 use crate::lexer::token::{Token, TokenKind};
 
@@ -62,6 +63,7 @@ impl Parser {
         trace!("Parsing declaration. Current: {:#?}", self.current());
         let stmt = match self.current().kind {
             TokenKind::Fn => self.parse_fn()?,
+            TokenKind::Struct => self.parse_struct()?,
             _ => self.parse_toplevel_expr()?,
         };
         Ok(stmt)

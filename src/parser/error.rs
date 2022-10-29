@@ -19,7 +19,7 @@ pub enum ParseError {
     #[error("Expected '=' after identifier")]
     MissingEquals(),
     #[error("Expected colon after identifier {0}")]
-    MissingColon(String),
+    ExpectedColon(String),
     #[error("Expected ')' or ',' after argument declaration")]
     PrototypeMissingRightParenOrComma(),
     #[error("Unexpected token '{0}'")]
@@ -29,7 +29,7 @@ pub enum ParseError {
     #[error("Unexpected end of source")]
     UnexpectedEndOfSource(),
     #[error("Expected identifier")]
-    PrototypeMissingIdentifier(),
+    ExpectedIdentifier(),
 }
 
 pub fn report(token: &Token, error: ParseError) -> ParseError {

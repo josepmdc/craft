@@ -6,7 +6,7 @@ use inkwell::{
     builder::Builder,
     context::Context,
     module::Module,
-    types::BasicMetadataTypeEnum,
+    types::{BasicMetadataTypeEnum, BasicTypeEnum, StructType},
     values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue, PointerValue},
     FloatPredicate, IntPredicate,
 };
@@ -16,6 +16,7 @@ use crate::{
     parser::{
         expr::{BinaryExpr, Expr, UnaryExpr},
         stmt::{Function, Prototype, Stmt},
+        structs::Struct,
         LiteralType, Type,
     },
 };
@@ -28,28 +29,24 @@ pub struct Compiler<'a, 'ctx> {
     pub context: &'ctx Context,
     pub builder: &'a Builder<'ctx>,
     pub module: &'a Module<'ctx>,
-    pub function: &'a Function,
 
     variables: HashMap<String, PointerValue<'ctx>>,
     fn_value_opt: Option<FunctionValue<'ctx>>,
 }
 
 impl<'a, 'ctx> Compiler<'a, 'ctx> {
-    pub fn compile(
+    pub fn new(
         context: &'ctx Context,
         builder: &'a Builder<'ctx>,
         module: &'a Module<'ctx>,
-        function: &'a Function,
-    ) -> CodegenResult<FunctionValue<'ctx>> {
-        let mut compiler = Self {
+    ) -> Self {
+        Self {
             context,
             builder,
             module,
-            function,
             variables: HashMap::new(),
             fn_value_opt: None,
-        };
-        compiler.compile_fn()
+        }
     }
 
     // Creates a new stack allocation instruction in the entry block of the function.
@@ -79,45 +76,66 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             .ok_or(CodegenError::OutsideOfFuncion(stmt_name))
     }
 
-    fn compile_fn(&mut self) -> CodegenResult<FunctionValue<'ctx>> {
-        let proto = &self.function.prototype;
-        let function = self.compile_prototype(proto)?;
+    pub fn compile_fn(&mut self, function: Function) -> CodegenResult<FunctionValue<'ctx>> {
+        let proto = &function.prototype;
+        let compiled_func = self.compile_prototype(proto)?;
 
-        if self.function.is_builtin {
-            return Ok(function);
+        if function.is_builtin {
+            return Ok(compiled_func);
         }
 
-        let entry = self.context.append_basic_block(function, "entry");
+        let entry = self.context.append_basic_block(compiled_func, "entry");
 
         self.builder.position_at_end(entry);
 
-        self.fn_value_opt = Some(function);
+        self.fn_value_opt = Some(compiled_func);
 
         self.variables.reserve(proto.params.len());
 
-        for (i, arg) in function.get_param_iter().enumerate() {
+        for (i, arg) in compiled_func.get_param_iter().enumerate() {
             let alloca = self.create_entry_block_alloca(proto.params[i].name.as_str(), arg);
             self.builder.build_store(alloca, arg);
             self.variables.insert(proto.params[i].name.clone(), alloca);
         }
 
-        match self.compile_block(&self.function.body, self.function.return_expr.clone())? {
+        match self.compile_block(&function.body, function.return_expr.clone())? {
             Some(ret) => self.builder.build_return(Some(&ret)),
             None => self.builder.build_return(None),
         };
 
         if std::env::args().any(|x| x == "-cc") {
-            function.print_to_stderr();
+            compiled_func.print_to_stderr();
         }
 
-        if function.verify(true) {
-            Ok(function)
+        if compiled_func.verify(true) {
+            Ok(compiled_func)
         } else {
             unsafe {
-                function.delete();
+                compiled_func.delete();
             }
             Err(CodegenError::InvalidGeneratedFunction())
         }
+    }
+
+    pub fn compile_struct(&self, struct_: Struct) -> CodegenResult<StructType> {
+        let struct_type = self.context.opaque_struct_type(&struct_.identifier);
+
+        let field_types = struct_
+            .fields
+            .iter()
+            .map(|field| match &field.type_ {
+                Type::F64 => Ok(self.context.f64_type().into()),
+                Type::I64 => Ok(self.context.i64_type().into()),
+                invalid_type => Err(CodegenError::InvalidType(invalid_type.clone())),
+            })
+            .collect::<CodegenResult<Vec<BasicTypeEnum>>>()?;
+
+        struct_type.set_body(&field_types, false);
+
+        println!("=============== STRUCT ===============");
+        println!("{:#?}", struct_type.print_to_string());
+        println!("======================================");
+        Ok(struct_type)
     }
 
     fn compile_prototype(&self, proto: &Prototype) -> CodegenResult<FunctionValue<'ctx>> {

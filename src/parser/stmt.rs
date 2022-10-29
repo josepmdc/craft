@@ -1,10 +1,11 @@
 use crate::lexer::token::{Token, TokenKind};
 
-use super::{error::ParseError, expr::Expr, ParseResult, Parser, Type, Variable};
+use super::{error::ParseError, expr::Expr, ParseResult, Parser, Type, Variable, structs::Struct};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Stmt {
     Function(Function),
+    Struc(Struct),
     Var { token: Token, initializer: Expr },
     Expr(Expr),
     While { cond: Expr, body: Expr },
@@ -82,7 +83,7 @@ impl Parser {
         trace!("Parsing prototype");
         let name = match &self.current().kind {
             TokenKind::Identifier(identifier) => identifier.clone(),
-            _ => return Err(ParseError::PrototypeMissingIdentifier()),
+            _ => return Err(ParseError::ExpectedIdentifier()),
         };
 
         self.advance()?;
@@ -125,12 +126,12 @@ impl Parser {
                     param.name = id.clone();
                     self.advance()?;
                 }
-                _ => return Err(ParseError::PrototypeMissingIdentifier()),
+                _ => return Err(ParseError::ExpectedIdentifier()),
             }
 
             self.consume(
                 TokenKind::Colon,
-                ParseError::MissingColon(param.name.clone()),
+                ParseError::ExpectedColon(param.name.clone()),
             )?;
 
             match &self.current().kind {
@@ -138,7 +139,7 @@ impl Parser {
                     param.type_ = self.parse_type(id.clone());
                     self.advance()?;
                 }
-                _ => return Err(ParseError::PrototypeMissingIdentifier()),
+                _ => return Err(ParseError::ExpectedIdentifier()),
             }
 
             params.push(param);

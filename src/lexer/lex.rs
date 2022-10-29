@@ -115,6 +115,7 @@ impl Scanner {
             "if" => Some(TokenKind::If),
             "else" => Some(TokenKind::Else),
             "while" => Some(TokenKind::While),
+            "struct" => Some(TokenKind::Struct),
             _ => None,
         }
     }
