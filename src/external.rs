@@ -35,7 +35,7 @@ pub fn builtin_funtions() -> Vec<Stmt> {
         Stmt::Function(new_builtin_fn(
             "print",
             vec![Variable {
-                name: "x".to_string(),
+                identifier: "x".to_string(),
                 type_: Type::F64,
             }],
             Type::Void,
@@ -43,7 +43,7 @@ pub fn builtin_funtions() -> Vec<Stmt> {
         Stmt::Function(new_builtin_fn(
             "println",
             vec![Variable {
-                name: "x".to_string(),
+                identifier: "x".to_string(),
                 type_: Type::F64,
             }],
             Type::Void,

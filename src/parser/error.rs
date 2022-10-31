@@ -20,6 +20,10 @@ pub enum ParseError {
     MissingEquals(),
     #[error("Expected colon after identifier {0}")]
     ExpectedColon(String),
+    #[error("Expected comma after identifier {0}")]
+    ExpectedComma(String),
+    #[error("Expected '=' after identifier {0}")]
+    ExpectedEquals(String),
     #[error("Expected ')' or ',' after argument declaration")]
     PrototypeMissingRightParenOrComma(),
     #[error("Unexpected token '{0}'")]

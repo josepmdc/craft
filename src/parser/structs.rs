@@ -1,11 +1,23 @@
 use crate::{lexer::token::TokenKind, parser::error::ParseError};
 
-use super::{stmt::Stmt, ParseResult, Parser, Variable};
+use super::{expr::Expr, stmt::Stmt, ParseResult, Parser, Variable};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Struct {
     pub identifier: String,
     pub fields: Vec<Variable>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct StructExpr {
+    pub identifier: String,
+    pub fields: Vec<StructField>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct StructField {
+    pub identifier: String,
+    pub rhs: Expr,
 }
 
 impl Parser {
@@ -18,32 +30,42 @@ impl Parser {
 
         let mut fields = vec![];
         while self.current().kind != TokenKind::RightBrace {
-            fields.push(self.parse_field()?);
+            fields.push(self.parse_field_definition()?);
         }
 
         self.advance()?; // skip }
 
-        return Ok(Stmt::Struc(Struct {
-            identifier,
-            fields,
-        }));
+        Ok(Stmt::Struct(Struct { identifier, fields }))
     }
 
-    fn parse_field(&mut self) -> ParseResult<Variable> {
-        let name = self.consume_identifier()?;
-        self.consume(TokenKind::Colon, ParseError::ExpectedColon(name.clone()))?;
+    fn parse_field_definition(&mut self) -> ParseResult<Variable> {
+        let identifier = self.consume_identifier()?;
+        self.consume(TokenKind::Colon, ParseError::ExpectedColon(identifier.clone()))?;
         let type_id = self.consume_identifier()?;
         let type_ = self.parse_type(type_id);
-        Ok(Variable { name, type_ })
+        Ok(Variable { identifier, type_ })
     }
 
-    fn consume_identifier(&mut self) -> ParseResult<String> {
-        match self.current().kind.clone() {
-            TokenKind::Identifier(id) => {
-                self.advance()?;
-                Ok(id)
-            }
-            _ => Err(ParseError::ExpectedIdentifier()),
+    pub fn parse_struct_expr(&mut self) -> ParseResult<Expr> {
+        let identifier = self.consume_identifier()?;
+
+        self.consume(TokenKind::LeftBrace, ParseError::MissingLeftBrace())?;
+
+        let mut fields = vec![];
+        while self.current().kind != TokenKind::RightBrace {
+            fields.push(self.parse_field_expr()?);
         }
+
+        self.advance()?; // skip }
+
+        Ok(Expr::Struct(StructExpr { identifier, fields }))
+    }
+
+    fn parse_field_expr(&mut self) -> ParseResult<StructField> {
+        let identifier = self.consume_identifier()?;
+        self.consume(TokenKind::Colon, ParseError::ExpectedColon(identifier.clone()))?;
+        let rhs = self.parse_expr()?;
+        self.consume(TokenKind::Comma, ParseError::ExpectedComma(identifier.clone()))?;
+        Ok(StructField { identifier, rhs })
     }
 }

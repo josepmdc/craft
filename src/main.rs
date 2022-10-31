@@ -80,8 +80,8 @@ fn run(source: String) -> Result<(), CompilerError> {
             Stmt::Function(func) => {
                 compiler.compile_fn(func)?;
             }
-            Stmt::Struc(struct_) => {
-                compiler.compile_struct(struct_)?;
+            Stmt::Struct(struct_) => {
+                compiler.compile_struct(&struct_)?;
             }
             _ => panic!("Unexpected statement, {:#?}", node),
         };

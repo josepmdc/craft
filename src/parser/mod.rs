@@ -34,7 +34,7 @@ impl Default for Type {
 
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct Variable {
-    pub name: String,
+    pub identifier: String,
     pub type_: Type,
 }
 
@@ -94,6 +94,16 @@ impl Parser {
                 Ok(self.previous())
             }
             false => Err(error::report(self.current(), error)),
+        }
+    }
+
+    fn consume_identifier(&mut self) -> ParseResult<String> {
+        match self.current().kind.clone() {
+            TokenKind::Identifier(id) => {
+                self.advance()?;
+                Ok(id)
+            }
+            _ => Err(ParseError::ExpectedIdentifier()),
         }
     }
 
@@ -260,11 +270,11 @@ mod tests {
                 name: "sum".to_string(),
                 params: vec![
                     Variable {
-                        name: "a".to_string(),
+                        identifier: "a".to_string(),
                         type_: Type::I64,
                     },
                     Variable {
-                        name: "b".to_string(),
+                        identifier: "b".to_string(),
                         type_: Type::I64,
                     },
                 ],

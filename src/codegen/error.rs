@@ -22,4 +22,6 @@ pub enum CodegenError {
     DifferentTypesBinOp(),
     #[error("Invalid type {0:#?}")]
     InvalidType(Type),
+    #[error("Undefined struct {0}")]
+    UndefinedStruct(String),
 }

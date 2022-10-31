@@ -5,7 +5,7 @@ use super::{error::ParseError, expr::Expr, ParseResult, Parser, Type, Variable, 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Stmt {
     Function(Function),
-    Struc(Struct),
+    Struct(Struct),
     Var { token: Token, initializer: Expr },
     Expr(Expr),
     While { cond: Expr, body: Expr },
@@ -63,7 +63,7 @@ impl Parser {
         let stmt = match &self.current().kind {
             TokenKind::Identifier(_) => {
                 let identifier = self.advance()?.clone();
-                self.consume(TokenKind::Equal, ParseError::MissingLeftParen())?;
+                self.consume(TokenKind::Equal, ParseError::ExpectedEquals(identifier.lexeme.clone()))?;
                 Stmt::Var {
                     token: identifier,
                     initializer: self.parse_expr()?,
@@ -81,12 +81,7 @@ impl Parser {
 
     fn parse_prototype(&mut self) -> ParseResult<Prototype> {
         trace!("Parsing prototype");
-        let name = match &self.current().kind {
-            TokenKind::Identifier(identifier) => identifier.clone(),
-            _ => return Err(ParseError::ExpectedIdentifier()),
-        };
-
-        self.advance()?;
+        let name = self.consume_identifier()?;
 
         let params = self.parse_prototype_params()?;
 
@@ -123,7 +118,7 @@ impl Parser {
             let mut param = Variable::default();
             match &self.current().kind {
                 TokenKind::Identifier(id) => {
-                    param.name = id.clone();
+                    param.identifier = id.clone();
                     self.advance()?;
                 }
                 _ => return Err(ParseError::ExpectedIdentifier()),
@@ -131,7 +126,7 @@ impl Parser {
 
             self.consume(
                 TokenKind::Colon,
-                ParseError::ExpectedColon(param.name.clone()),
+                ParseError::ExpectedColon(param.identifier.clone()),
             )?;
 
             match &self.current().kind {

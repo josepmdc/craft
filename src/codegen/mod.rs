@@ -16,7 +16,7 @@ use crate::{
     parser::{
         expr::{BinaryExpr, Expr, UnaryExpr},
         stmt::{Function, Prototype, Stmt},
-        structs::Struct,
+        structs::{Struct, StructExpr},
         LiteralType, Type,
     },
 };
@@ -93,9 +93,10 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         self.variables.reserve(proto.params.len());
 
         for (i, arg) in compiled_func.get_param_iter().enumerate() {
-            let alloca = self.create_entry_block_alloca(proto.params[i].name.as_str(), arg);
+            let alloca = self.create_entry_block_alloca(proto.params[i].identifier.as_str(), arg);
             self.builder.build_store(alloca, arg);
-            self.variables.insert(proto.params[i].name.clone(), alloca);
+            self.variables
+                .insert(proto.params[i].identifier.clone(), alloca);
         }
 
         match self.compile_block(&function.body, function.return_expr.clone())? {
@@ -117,34 +118,56 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         }
     }
 
-    pub fn compile_struct(&self, struct_: Struct) -> CodegenResult<StructType> {
+    pub fn compile_struct(&self, struct_: &Struct) -> CodegenResult<StructType> {
         let struct_type = self.context.opaque_struct_type(&struct_.identifier);
 
         let field_types = struct_
             .fields
             .iter()
-            .map(|field| match &field.type_ {
-                Type::F64 => Ok(self.context.f64_type().into()),
-                Type::I64 => Ok(self.context.i64_type().into()),
-                invalid_type => Err(CodegenError::InvalidType(invalid_type.clone())),
-            })
+            .map(|field| self.get_llvm_type(&field.type_).into())
             .collect::<CodegenResult<Vec<BasicTypeEnum>>>()?;
 
         struct_type.set_body(&field_types, false);
+        Ok(struct_type)
+    }
+
+    fn get_llvm_type(&self, type_: &Type) -> CodegenResult<BasicTypeEnum> {
+        match type_ {
+            Type::F64 => Ok(self.context.f64_type().into()),
+            Type::I64 => Ok(self.context.i64_type().into()),
+            Type::Struct(id) => Ok(self
+                .module
+                .get_struct_type(&id)
+                .ok_or(CodegenError::UndefinedStruct(id.clone()))?
+                .into()),
+            invalid_type => Err(CodegenError::InvalidType(invalid_type.clone())),
+        }
+    }
+
+    fn compile_struct_expr(&self, struct_: &StructExpr) -> CodegenResult<BasicValueEnum<'ctx>> {
+        let struct_type = self
+            .module
+            .get_struct_type(&struct_.identifier)
+            .ok_or(CodegenError::UndefinedStruct(struct_.identifier.clone()))?;
 
         println!("=============== STRUCT ===============");
         println!("{:#?}", struct_type.print_to_string());
         println!("======================================");
-        Ok(struct_type)
+        todo!() // TODO
     }
 
     fn compile_prototype(&self, proto: &Prototype) -> CodegenResult<FunctionValue<'ctx>> {
         let param_types = proto
             .params
             .iter()
-            .map(|param| match &param.type_ {
+            .map(|field| match &field.type_ {
                 Type::F64 => Ok(self.context.f64_type().into()),
                 Type::I64 => Ok(self.context.i64_type().into()),
+                Type::Struct(id) => Ok(self
+                    .module
+                    .get_struct_type(&id)
+                    .ok_or(CodegenError::UndefinedStruct(id.clone()))?
+                    .into()),
                 invalid_type => Err(CodegenError::InvalidType(invalid_type.clone())),
             })
             .collect::<CodegenResult<Vec<BasicMetadataTypeEnum>>>()?;
@@ -162,7 +185,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
 
         // Set names for all params.
         for (i, param) in fn_val.get_param_iter().enumerate() {
-            param.set_name(proto.params[i].name.as_str());
+            param.set_name(proto.params[i].identifier.as_str());
         }
 
         Ok(fn_val)
@@ -225,6 +248,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                     .clone()
                     .ok_or(CodegenError::ExpectedReturnExpr())?,
             ),
+            Expr::Struct(struct_) => self.compile_struct_expr(struct_),
         }
     }
 
