@@ -6,7 +6,7 @@ use inkwell::{
     builder::Builder,
     context::Context,
     module::Module,
-    types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum, StructType},
+    types::{AnyTypeEnum, BasicMetadataTypeEnum, BasicType, BasicTypeEnum, StructType},
     values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue, PointerValue},
     FloatPredicate, IntPredicate,
 };
@@ -224,39 +224,43 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         Ok(self.builder.build_load(struct_alloca, "tmp.deref"))
     }
 
-    fn compile_struct_field_access(
+    fn compile_field_access(
         &self,
         field_access: &FieldAccess,
     ) -> CodegenResult<BasicValueEnum<'ctx>> {
-        let variable_ptr = self.variables.get(&field_access.variable_id).unwrap();
+        let variable_ptr = self.variables.get(&field_access.variable_id).ok_or(
+            CodegenError::UndeclaredVariableOrOutOfScope(field_access.variable_id.clone()),
+        )?;
+
+        let struct_type = match variable_ptr.get_type().get_element_type() {
+            AnyTypeEnum::StructType(struct_type) => struct_type,
+            unexpected_type => Err(CodegenError::ExpectedStruct(unexpected_type.to_string()))?,
+        };
+
+        let struct_name = struct_type.get_name().unwrap().to_str().unwrap();
+
         let struct_ = self
             .structs
-            .get(
-                variable_ptr
-                    .get_type()
-                    .get_element_type()
-                    .into_struct_type()
-                    .get_name()
-                    .unwrap()
-                    .to_str()
-                    .unwrap(),
-            )
-            .unwrap();
+            .get(struct_name)
+            .ok_or(CodegenError::UndefinedStruct(struct_name.to_string()))?;
 
         let index = struct_
             .fields
             .iter()
             .position(|x| x.identifier == field_access.field_id)
-            .unwrap() as u32;
+            .ok_or(CodegenError::UndefinedStructField(
+                field_access.field_id.to_string(),
+            ))?;
 
         let field_ptr = self
             .builder
             .build_struct_gep(
                 *variable_ptr,
-                index,
+                index as u32,
                 &format!("tmp.access.{}", field_access.field_id),
             )
-            .unwrap();
+            .map_err(|_| CodegenError::BuildStructGepFailed())?;
+
         Ok(self.builder.build_load(field_ptr, "tmp.deref"))
     }
 
@@ -279,7 +283,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                     .ok_or(CodegenError::ExpectedReturnExpr())?,
             ),
             Expr::Struct(struct_) => self.compile_struct_expr(struct_),
-            Expr::FieldAccess(field_access) => self.compile_struct_field_access(field_access),
+            Expr::FieldAccess(field_access) => self.compile_field_access(field_access),
         }
     }
 
