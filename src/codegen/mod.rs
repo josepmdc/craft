@@ -6,7 +6,7 @@ use inkwell::{
     builder::Builder,
     context::Context,
     module::Module,
-    types::{BasicMetadataTypeEnum, BasicTypeEnum, StructType},
+    types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum, StructType},
     values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue, PointerValue},
     FloatPredicate, IntPredicate,
 };
@@ -16,7 +16,7 @@ use crate::{
     parser::{
         expr::{BinaryExpr, Expr, UnaryExpr},
         stmt::{Function, Prototype, Stmt},
-        structs::{Struct, StructExpr},
+        structs::{FieldAccess, Struct, StructExpr},
         LiteralType, Type,
     },
 };
@@ -31,6 +31,7 @@ pub struct Compiler<'a, 'ctx> {
     pub module: &'a Module<'ctx>,
 
     variables: HashMap<String, PointerValue<'ctx>>,
+    structs: HashMap<String, Struct>,
     fn_value_opt: Option<FunctionValue<'ctx>>,
 }
 
@@ -45,15 +46,16 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             builder,
             module,
             variables: HashMap::new(),
+            structs: HashMap::new(),
             fn_value_opt: None,
         }
     }
 
     // Creates a new stack allocation instruction in the entry block of the function.
-    fn create_entry_block_alloca(
+    fn create_entry_block_alloca<T: BasicType<'ctx>>(
         &self,
         name: &str,
-        value_type: BasicValueEnum,
+        var_type: T,
     ) -> PointerValue<'ctx> {
         let builder = self.context.create_builder();
 
@@ -64,11 +66,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             None => builder.position_at_end(entry),
         }
 
-        match value_type {
-            BasicValueEnum::IntValue(_) => builder.build_alloca(self.context.i64_type(), name),
-            BasicValueEnum::FloatValue(_) => builder.build_alloca(self.context.f64_type(), name),
-            _ => unimplemented!("Only int and float are supported at the moment"),
-        }
+        builder.build_alloca(var_type, name)
     }
 
     fn fn_value(&self, stmt_name: String) -> CodegenResult<FunctionValue<'ctx>> {
@@ -93,7 +91,8 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         self.variables.reserve(proto.params.len());
 
         for (i, arg) in compiled_func.get_param_iter().enumerate() {
-            let alloca = self.create_entry_block_alloca(proto.params[i].identifier.as_str(), arg);
+            let alloca =
+                self.create_entry_block_alloca(proto.params[i].identifier.as_str(), arg.get_type());
             self.builder.build_store(alloca, arg);
             self.variables
                 .insert(proto.params[i].identifier.clone(), alloca);
@@ -118,7 +117,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         }
     }
 
-    pub fn compile_struct(&self, struct_: &Struct) -> CodegenResult<StructType> {
+    pub fn compile_struct(&mut self, struct_: &Struct) -> CodegenResult<StructType> {
         let struct_type = self.context.opaque_struct_type(&struct_.identifier);
 
         let field_types = struct_
@@ -128,48 +127,16 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             .collect::<CodegenResult<Vec<BasicTypeEnum>>>()?;
 
         struct_type.set_body(&field_types, false);
+        self.structs
+            .insert(struct_.identifier.clone(), struct_.clone());
         Ok(struct_type)
-    }
-
-    fn get_llvm_type(&self, type_: &Type) -> CodegenResult<BasicTypeEnum> {
-        match type_ {
-            Type::F64 => Ok(self.context.f64_type().into()),
-            Type::I64 => Ok(self.context.i64_type().into()),
-            Type::Struct(id) => Ok(self
-                .module
-                .get_struct_type(&id)
-                .ok_or(CodegenError::UndefinedStruct(id.clone()))?
-                .into()),
-            invalid_type => Err(CodegenError::InvalidType(invalid_type.clone())),
-        }
-    }
-
-    fn compile_struct_expr(&self, struct_: &StructExpr) -> CodegenResult<BasicValueEnum<'ctx>> {
-        let struct_type = self
-            .module
-            .get_struct_type(&struct_.identifier)
-            .ok_or(CodegenError::UndefinedStruct(struct_.identifier.clone()))?;
-
-        println!("=============== STRUCT ===============");
-        println!("{:#?}", struct_type.print_to_string());
-        println!("======================================");
-        todo!() // TODO
     }
 
     fn compile_prototype(&self, proto: &Prototype) -> CodegenResult<FunctionValue<'ctx>> {
         let param_types = proto
             .params
             .iter()
-            .map(|field| match &field.type_ {
-                Type::F64 => Ok(self.context.f64_type().into()),
-                Type::I64 => Ok(self.context.i64_type().into()),
-                Type::Struct(id) => Ok(self
-                    .module
-                    .get_struct_type(&id)
-                    .ok_or(CodegenError::UndefinedStruct(id.clone()))?
-                    .into()),
-                invalid_type => Err(CodegenError::InvalidType(invalid_type.clone())),
-            })
+            .map(|field| Ok(self.get_llvm_type(&field.type_)?.into()))
             .collect::<CodegenResult<Vec<BasicMetadataTypeEnum>>>()?;
 
         let fn_type = match &proto.return_type {
@@ -209,7 +176,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
 
     fn compile_var_declaration(&mut self, name: String, initializer: &Expr) -> CodegenResult<()> {
         let compiled_expr = self.compile_expr(initializer)?;
-        let alloca = self.create_entry_block_alloca(name.as_str(), compiled_expr);
+        let alloca = self.create_entry_block_alloca(name.as_str(), compiled_expr.get_type());
         self.builder.build_store(alloca, compiled_expr);
         self.variables.remove(&name);
         self.variables.insert(name, alloca);
@@ -228,6 +195,69 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             .ok_or_else(|| CodegenError::UndeclaredVariableOrOutOfScope(name.clone()))?;
         self.builder.build_store(*var, val);
         Ok(val)
+    }
+
+    fn compile_struct_expr(&mut self, struct_: &StructExpr) -> CodegenResult<BasicValueEnum<'ctx>> {
+        let struct_type = self
+            .module
+            .get_struct_type(&struct_.identifier)
+            .ok_or(CodegenError::UndefinedStruct(struct_.identifier.clone()))?;
+
+        let struct_alloca = self.create_entry_block_alloca(
+            &format!("tmp.{}", struct_.identifier),
+            struct_type.as_basic_type_enum(),
+        );
+
+        for (i, field) in struct_.fields.iter().enumerate() {
+            let field_ptr = self
+                .builder
+                .build_struct_gep(
+                    struct_alloca,
+                    i as u32,
+                    &format!("tmp.{}", field.identifier),
+                )
+                .map_err(|_| CodegenError::BuildStructGepFailed())?;
+            let value = self.compile_expr(&field.rhs)?;
+            self.builder.build_store(field_ptr, value);
+        }
+
+        Ok(self.builder.build_load(struct_alloca, "tmp.deref"))
+    }
+
+    fn compile_struct_field_access(
+        &self,
+        field_access: &FieldAccess,
+    ) -> CodegenResult<BasicValueEnum<'ctx>> {
+        let variable_ptr = self.variables.get(&field_access.variable_id).unwrap();
+        let struct_ = self
+            .structs
+            .get(
+                variable_ptr
+                    .get_type()
+                    .get_element_type()
+                    .into_struct_type()
+                    .get_name()
+                    .unwrap()
+                    .to_str()
+                    .unwrap(),
+            )
+            .unwrap();
+
+        let index = struct_
+            .fields
+            .iter()
+            .position(|x| x.identifier == field_access.field_id)
+            .unwrap() as u32;
+
+        let field_ptr = self
+            .builder
+            .build_struct_gep(
+                *variable_ptr,
+                index,
+                &format!("tmp.access.{}", field_access.field_id),
+            )
+            .unwrap();
+        Ok(self.builder.build_load(field_ptr, "tmp.deref"))
     }
 
     fn compile_expr(&mut self, expr: &Expr) -> CodegenResult<BasicValueEnum<'ctx>> {
@@ -249,6 +279,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                     .ok_or(CodegenError::ExpectedReturnExpr())?,
             ),
             Expr::Struct(struct_) => self.compile_struct_expr(struct_),
+            Expr::FieldAccess(field_access) => self.compile_struct_field_access(field_access),
         }
     }
 
@@ -596,5 +627,18 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         self.builder.position_at_end(after_while_block);
 
         Ok(())
+    }
+
+    fn get_llvm_type(&self, type_: &Type) -> CodegenResult<BasicTypeEnum<'ctx>> {
+        match type_ {
+            Type::F64 => Ok(self.context.f64_type().into()),
+            Type::I64 => Ok(self.context.i64_type().into()),
+            Type::Struct(id) => Ok(self
+                .module
+                .get_struct_type(&id)
+                .ok_or(CodegenError::UndefinedStruct(id.clone()))?
+                .into()),
+            invalid_type => Err(CodegenError::InvalidType(invalid_type.clone())),
+        }
     }
 }

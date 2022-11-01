@@ -24,4 +24,6 @@ pub enum CodegenError {
     InvalidType(Type),
     #[error("Undefined struct {0}")]
     UndefinedStruct(String),
+    #[error("BuildStructGep Failed")]
+    BuildStructGepFailed(),
 }

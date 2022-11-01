@@ -20,6 +20,8 @@ pub enum ParseError {
     MissingEquals(),
     #[error("Expected colon after identifier {0}")]
     ExpectedColon(String),
+    #[error("Expected dot after identifier {0}")]
+    ExpectedDot(String),
     #[error("Expected comma after identifier {0}")]
     ExpectedComma(String),
     #[error("Expected '=' after identifier {0}")]

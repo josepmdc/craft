@@ -40,6 +40,7 @@ impl Scanner {
         match self.advance() {
             ';' => self.add_token(TokenKind::Semicolon),
             ':' => self.add_token(TokenKind::Colon),
+            '.' => self.add_token(TokenKind::Dot),
             '(' => self.add_token(TokenKind::LeftParen),
             ')' => self.add_token(TokenKind::RightParen),
             '{' => self.add_token(TokenKind::LeftBrace),

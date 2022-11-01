@@ -20,6 +20,12 @@ pub struct StructField {
     pub rhs: Expr,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct FieldAccess {
+    pub variable_id: String,
+    pub field_id: String,
+}
+
 impl Parser {
     pub fn parse_struct(&mut self) -> ParseResult<Stmt> {
         trace!("Parsing struct");
@@ -39,14 +45,19 @@ impl Parser {
     }
 
     fn parse_field_definition(&mut self) -> ParseResult<Variable> {
+        trace!("Parsing field definition");
         let identifier = self.consume_identifier()?;
-        self.consume(TokenKind::Colon, ParseError::ExpectedColon(identifier.clone()))?;
+        self.consume(
+            TokenKind::Colon,
+            ParseError::ExpectedColon(identifier.clone()),
+        )?;
         let type_id = self.consume_identifier()?;
         let type_ = self.parse_type(type_id);
         Ok(Variable { identifier, type_ })
     }
 
     pub fn parse_struct_expr(&mut self) -> ParseResult<Expr> {
+        trace!("Parsing struct expr");
         let identifier = self.consume_identifier()?;
 
         self.consume(TokenKind::LeftBrace, ParseError::MissingLeftBrace())?;
@@ -62,10 +73,45 @@ impl Parser {
     }
 
     fn parse_field_expr(&mut self) -> ParseResult<StructField> {
+        trace!("Parsing field expr");
+
         let identifier = self.consume_identifier()?;
-        self.consume(TokenKind::Colon, ParseError::ExpectedColon(identifier.clone()))?;
+
+        self.consume(
+            TokenKind::Colon,
+            ParseError::ExpectedColon(identifier.clone()),
+        )?;
+
         let rhs = self.parse_expr()?;
-        self.consume(TokenKind::Comma, ParseError::ExpectedComma(identifier.clone()))?;
-        Ok(StructField { identifier, rhs })
+
+        self.consume(
+            TokenKind::Comma,
+            ParseError::ExpectedComma(identifier.clone()),
+        )?;
+
+        let field = StructField { identifier, rhs };
+
+        trace!("Parsed field: {:#?}", field);
+
+        Ok(field)
+    }
+
+    pub fn parse_field_access(&mut self) -> ParseResult<Expr> {
+        trace!("Parsing access to struct field");
+
+        let struct_id = self.consume_identifier()?;
+
+        self.consume(TokenKind::Dot, ParseError::ExpectedDot(struct_id.clone()))?;
+
+        let field_id = self.consume_identifier()?;
+
+        let field_access = FieldAccess {
+            variable_id: struct_id,
+            field_id,
+        };
+
+        trace!("Parsed access to struct field: {:#?}", field_access);
+
+        Ok(Expr::FieldAccess(field_access))
     }
 }
