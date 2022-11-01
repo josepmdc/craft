@@ -14,13 +14,15 @@ macro_rules! cstr {
 }
 
 #[no_mangle]
-pub extern "C" fn print(x: f64) {
+pub extern "C" fn print(x: f64) -> f64 {
     print!("{}", x);
+    x
 }
 
 #[no_mangle]
-pub extern "C" fn println(x: f64) {
+pub extern "C" fn println(x: f64) -> f64 {
     println!("{}", x);
+    x
 }
 
 pub fn shim_builtin_functions() {
@@ -38,7 +40,7 @@ pub fn builtin_funtions() -> Vec<Stmt> {
                 identifier: "x".to_string(),
                 type_: Type::F64,
             }],
-            Type::Void,
+            Type::F64,
         )),
         Stmt::Function(new_builtin_fn(
             "println",
@@ -46,7 +48,7 @@ pub fn builtin_funtions() -> Vec<Stmt> {
                 identifier: "x".to_string(),
                 type_: Type::F64,
             }],
-            Type::Void,
+            Type::F64,
         )),
     ]
 }

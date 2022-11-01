@@ -104,7 +104,7 @@ fn run_jit(module: &Module) {
         .unwrap();
 
     let maybe_fn =
-        unsafe { ee.get_function::<unsafe extern "C" fn() -> f64>(PROGRAM_STARTING_POINT) };
+        unsafe { ee.get_function::<unsafe extern "C" fn() -> i64>(PROGRAM_STARTING_POINT) };
 
     let compiled_fn = match maybe_fn {
         Ok(f) => f,
