@@ -73,23 +73,26 @@ fn run(source: String) -> Result<(), CompilerError> {
     let module = context.create_module("repl");
     let builder = context.create_builder();
 
-    for func in ast {
-        let func = match func {
-            Stmt::Function(func) => func.clone(),
-            _ => panic!("Unexpected statement, {:#?}", func),
-        };
+    let mut compiler = Compiler::new(&context, &builder, &module);
 
-        match Compiler::compile(&context, &builder, &module, &func) {
-            Ok(function) => {
-                if display_compiler_output {
-                    println!("--------------------------------");
-                    function.print_to_stderr();
-                    println!("--------------------------------");
-                }
+    for node in ast {
+        match node {
+            Stmt::Function(func) => {
+                compiler.compile_fn(func)?;
             }
-            Err(err) => return Err(CompilerError::CodegenError(err)),
-        }
+            Stmt::Struct(struct_) => {
+                compiler.compile_struct(&struct_)?;
+            }
+            _ => panic!("Unexpected statement, {:#?}", node),
+        };
     }
+
+    if display_compiler_output {
+        println!("---------------------------------------");
+        module.print_to_stderr();
+        println!("---------------------------------------");
+    }
+
     run_jit(&module);
 
     Ok(())
@@ -101,7 +104,7 @@ fn run_jit(module: &Module) {
         .unwrap();
 
     let maybe_fn =
-        unsafe { ee.get_function::<unsafe extern "C" fn() -> f64>(PROGRAM_STARTING_POINT) };
+        unsafe { ee.get_function::<unsafe extern "C" fn() -> i64>(PROGRAM_STARTING_POINT) };
 
     let compiled_fn = match maybe_fn {
         Ok(f) => f,

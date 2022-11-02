@@ -3,7 +3,7 @@ use crate::{
     parser::error::{self, ParseError},
 };
 
-use super::{stmt::Stmt, LiteralType, ParseResult, Parser};
+use super::{stmt::Stmt, LiteralType, ParseResult, Parser, structs::{StructExpr, FieldAccess}};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct BinaryExpr {
@@ -46,6 +46,8 @@ pub enum Expr {
         else_: Box<Expr>,
     },
     Block(Block),
+    Struct(StructExpr),
+    FieldAccess(FieldAccess),
 }
 
 impl Parser {
@@ -221,9 +223,12 @@ impl Parser {
     }
 
     fn parse_id_expr(&mut self) -> ParseResult<Expr> {
+        trace!("Parsing identifier expr");
         match self.peek().kind {
             TokenKind::LeftParen => self.parse_fn_call(),
             TokenKind::Equal => self.parse_var_assignment(),
+            TokenKind::LeftBrace => self.parse_struct_expr(),
+            TokenKind::Dot => self.parse_field_access(),
             _ => {
                 let name = self.current().lexeme.clone();
                 self.advance()?;

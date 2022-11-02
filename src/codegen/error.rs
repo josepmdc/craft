@@ -22,4 +22,12 @@ pub enum CodegenError {
     DifferentTypesBinOp(),
     #[error("Invalid type {0:#?}")]
     InvalidType(Type),
+    #[error("Undefined struct {0}")]
+    UndefinedStruct(String),
+    #[error("Undefined struct field {0}")]
+    UndefinedStructField(String),
+    #[error("Not a struct or index is out of bounds")]
+    BuildStructGepFailed(),
+    #[error("Expected struct but found {0}")]
+    ExpectedStruct(String),
 }
