@@ -4,13 +4,13 @@ use crate::{lexer::token::TokenKind, parser::error::ParseError};
 
 use super::{expr::Expr, stmt::Stmt, ParseResult, Parser, Type, Variable};
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Struct {
     pub identifier: String,
     pub fields: HashMap<String, FieldMetadata>,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FieldMetadata {
     pub index: u32,
     pub type_: Type,
@@ -28,7 +28,7 @@ pub struct StructField {
     pub rhs: Expr,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FieldAccess {
     pub variable_id: String,
     pub field_id: String,
