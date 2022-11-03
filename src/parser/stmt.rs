@@ -1,6 +1,6 @@
 use crate::lexer::token::{Token, TokenKind};
 
-use super::{error::ParseError, expr::Expr, ParseResult, Parser, Type, Variable, structs::Struct};
+use super::{error::ParseError, expr::Expr, structs::Struct, ParseResult, Parser, Type, Variable};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Stmt {
@@ -63,7 +63,10 @@ impl Parser {
         let stmt = match &self.current().kind {
             TokenKind::Identifier(_) => {
                 let identifier = self.advance()?.clone();
-                self.consume(TokenKind::Equal, ParseError::ExpectedEquals(identifier.lexeme.clone()))?;
+                self.consume(
+                    TokenKind::Equal,
+                    ParseError::ExpectedEquals(identifier.lexeme.clone()),
+                )?;
                 Stmt::Var {
                     token: identifier,
                     initializer: self.parse_expr()?,
