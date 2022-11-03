@@ -1,20 +1,28 @@
+use std::collections::HashMap;
+
 use crate::{lexer::token::TokenKind, parser::error::ParseError};
 
-use super::{expr::Expr, stmt::Stmt, ParseResult, Parser, Variable};
+use super::{expr::Expr, stmt::Stmt, ParseResult, Parser, Type, Variable};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Struct {
     pub identifier: String,
-    pub fields: Vec<Variable>,
+    pub fields: HashMap<String, FieldMetadata>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct FieldMetadata {
+    pub index: u32,
+    pub type_: Type,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct StructExpr {
     pub identifier: String,
-    pub fields: Vec<StructField>,
+    pub fields: HashMap<String, Expr>,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct StructField {
     pub identifier: String,
     pub rhs: Expr,
@@ -34,9 +42,26 @@ impl Parser {
 
         self.consume(TokenKind::LeftBrace, ParseError::MissingLeftBrace())?;
 
-        let mut fields = vec![];
+        let mut fields = HashMap::new();
+        let mut index = 0;
         while self.current().kind != TokenKind::RightBrace {
-            fields.push(self.parse_field_definition()?);
+            let field = self.parse_field_definition()?;
+
+            if fields.contains_key(&field.identifier) {
+                Err(ParseError::RedefinedField(
+                    field.identifier.clone(),
+                    identifier.clone(),
+                ))?;
+            }
+
+            fields.insert(
+                field.identifier,
+                FieldMetadata {
+                    index,
+                    type_: field.type_,
+                },
+            );
+            index += 1;
         }
 
         self.advance()?; // skip }
@@ -62,9 +87,16 @@ impl Parser {
 
         self.consume(TokenKind::LeftBrace, ParseError::MissingLeftBrace())?;
 
-        let mut fields = vec![];
+        let mut fields = HashMap::new();
         while self.current().kind != TokenKind::RightBrace {
-            fields.push(self.parse_field_expr()?);
+            let field_expr = self.parse_field_expr()?;
+            if fields.contains_key(&field_expr.identifier) {
+                return Err(ParseError::RedefinedField(
+                    field_expr.identifier,
+                    identifier,
+                ));
+            }
+            fields.insert(field_expr.identifier, field_expr.rhs);
         }
 
         self.advance()?; // skip }

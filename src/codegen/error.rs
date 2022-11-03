@@ -30,4 +30,6 @@ pub enum CodegenError {
     BuildStructGepFailed(),
     #[error("Expected struct but found {0}")]
     ExpectedStruct(String),
+    #[error("All fields of struct {0} must be initialized")]
+    AllFieldsMustBeInitialized(String),
 }

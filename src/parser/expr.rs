@@ -3,7 +3,11 @@ use crate::{
     parser::error::{self, ParseError},
 };
 
-use super::{stmt::Stmt, LiteralType, ParseResult, Parser, structs::{StructExpr, FieldAccess}};
+use super::{
+    stmt::Stmt,
+    structs::{FieldAccess, StructExpr},
+    LiteralType, ParseResult, Parser,
+};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct BinaryExpr {

@@ -123,7 +123,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         let field_types = struct_
             .fields
             .iter()
-            .map(|field| self.get_llvm_type(&field.type_).into())
+            .map(|(_, metadata)| self.get_llvm_type(&metadata.type_).into())
             .collect::<CodegenResult<Vec<BasicTypeEnum>>>()?;
 
         struct_type.set_body(&field_types, false);
@@ -197,27 +197,45 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         Ok(val)
     }
 
-    fn compile_struct_expr(&mut self, struct_: &StructExpr) -> CodegenResult<BasicValueEnum<'ctx>> {
-        let struct_type = self
-            .module
-            .get_struct_type(&struct_.identifier)
-            .ok_or(CodegenError::UndefinedStruct(struct_.identifier.clone()))?;
+    fn compile_struct_expr(
+        &mut self,
+        struct_expr: &StructExpr,
+    ) -> CodegenResult<BasicValueEnum<'ctx>> {
+        let struct_type = self.module.get_struct_type(&struct_expr.identifier).ok_or(
+            CodegenError::UndefinedStruct(struct_expr.identifier.clone()),
+        )?;
 
         let struct_alloca = self.create_entry_block_alloca(
-            &format!("tmp.{}", struct_.identifier),
+            &format!("tmp.{}", struct_expr.identifier),
             struct_type.as_basic_type_enum(),
         );
 
-        for (i, field) in struct_.fields.iter().enumerate() {
+        let struct_fields = self
+            .structs
+            .get(&struct_expr.identifier)
+            .ok_or(CodegenError::UndefinedStruct(
+                struct_expr.identifier.clone(),
+            ))?
+            .fields
+            .clone();
+
+        if struct_expr.fields.len() != struct_fields.len() {
+            Err(CodegenError::AllFieldsMustBeInitialized(
+                struct_expr.identifier.clone(),
+            ))?;
+        }
+
+        for (id, rhs) in struct_expr.fields.iter() {
+            let index = struct_fields
+                .get(id)
+                .ok_or(CodegenError::UndefinedStructField(id.clone()))?
+                .index;
+
             let field_ptr = self
                 .builder
-                .build_struct_gep(
-                    struct_alloca,
-                    i as u32,
-                    &format!("tmp.{}", field.identifier),
-                )
+                .build_struct_gep(struct_alloca, index, &format!("tmp.{}", id))
                 .map_err(|_| CodegenError::BuildStructGepFailed())?;
-            let value = self.compile_expr(&field.rhs)?;
+            let value = self.compile_expr(rhs)?;
             self.builder.build_store(field_ptr, value);
         }
 
@@ -239,18 +257,16 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
 
         let struct_name = struct_type.get_name().unwrap().to_str().unwrap();
 
-        let struct_ = self
+        let index = self
             .structs
             .get(struct_name)
-            .ok_or(CodegenError::UndefinedStruct(struct_name.to_string()))?;
-
-        let index = struct_
+            .ok_or(CodegenError::UndefinedStruct(struct_name.to_string()))?
             .fields
-            .iter()
-            .position(|x| x.identifier == field_access.field_id)
+            .get(&field_access.field_id)
             .ok_or(CodegenError::UndefinedStructField(
                 field_access.field_id.to_string(),
-            ))?;
+            ))?
+            .index;
 
         let field_ptr = self
             .builder
