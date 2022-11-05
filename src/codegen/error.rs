@@ -20,6 +20,8 @@ pub enum CodegenError {
     ExpectedReturnExpr(),
     #[error("Operands in binary operation must be of the same type")]
     DifferentTypesBinOp(),
+    #[error("Return types in branch expression must be of the same type")]
+    DifferentReturnTypesBranch(),
     #[error("Invalid type {0:#?}")]
     InvalidType(Type),
     #[error("Undefined struct {0}")]

@@ -212,7 +212,7 @@ impl Parser {
             TokenKind::LeftParen => self.parse_grouping()?,
             TokenKind::Identifier(_) => self.parse_id_expr()?,
             TokenKind::If => self.parse_if()?,
-            TokenKind::LeftBrace => self.parse_block()?,
+            TokenKind::LeftBrace => self.parse_block_expr()?,
             _ => {
                 let token = self.current();
                 return Err(error::report(
@@ -257,12 +257,12 @@ impl Parser {
         self.advance()?; // skip 'if' token
 
         let cond = self.parse_expr()?;
-        let then = self.parse_block()?;
+        let then = self.parse_block_expr()?;
 
         self.consume(TokenKind::Else, ParseError::MissingElse())?;
 
         let else_ = match self.current().kind {
-            TokenKind::LeftBrace => self.parse_block()?,
+            TokenKind::LeftBrace => self.parse_block_expr()?,
             TokenKind::If => self.parse_if()?,
             _ => {
                 return Err(ParseError::UnexpectedTokenVerbose {
@@ -333,55 +333,7 @@ impl Parser {
         Ok(expr)
     }
 
-    pub fn parse_block(&mut self) -> ParseResult<Expr> {
-        trace!("Parsing block");
-        self.consume(TokenKind::LeftBrace, ParseError::MissingLeftBrace())?;
-
-        let mut body = vec![];
-
-        while !self.current_is(TokenKind::RightBrace) {
-            let stmt = self.parse_stmt()?;
-
-            match self.current().kind {
-                TokenKind::Semicolon => {
-                    self.advance()?; // skip ;
-                    body.push(stmt)
-                }
-                TokenKind::RightBrace => {
-                    // if the last line of the block is an expression, it'll be the return
-                    let expr = match stmt {
-                        Stmt::Expr(expr) => expr,
-                        _ => return Err(ParseError::MissingSemicolon()),
-                    };
-
-                    let block = Block {
-                        body,
-                        return_expr: Some(Box::new(expr)),
-                    };
-
-                    trace!("Parsed block: {:#?}", block);
-
-                    self.advance()?; // Skip '}'
-
-                    return Ok(Expr::Block(block));
-                }
-                _ => return Err(ParseError::MissingSemicolon()),
-            };
-
-            if self.is_at_end() {
-                return Err(ParseError::UnexpectedEndOfSource());
-            }
-        }
-
-        self.advance()?; // Skip '}'
-
-        let block = Block {
-            body,
-            return_expr: None,
-        };
-
-        trace!("Parsed block: {:#?}", block);
-
-        Ok(Expr::Block(block))
+    pub fn parse_block_expr(&mut self) -> ParseResult<Expr> {
+        Ok(Expr::Block(self.parse_block()?))
     }
 }
