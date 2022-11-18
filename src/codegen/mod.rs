@@ -287,7 +287,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             Expr::Unary(expr) => self.compile_unary(expr),
             Expr::Variable(var) => self.compile_variable(var.as_str()),
             Expr::FnCall { fn_name, args } => self.compile_fn_call(fn_name, args),
-            Expr::Conditional { cond, then, else_ } => {
+            Expr::If { cond, then, else_ } => {
                 self.compile_conditional(*cond.clone(), *then.clone(), *else_.clone())
             }
             Expr::VariableAssignment { id, rhs } => self.compile_var_assignment(id, rhs),

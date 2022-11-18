@@ -44,7 +44,7 @@ pub enum Expr {
         fn_name: String,
         args: Vec<Expr>,
     },
-    Conditional {
+    If {
         cond: Box<Expr>,
         then: Box<Expr>,
         else_: Box<Expr>,
@@ -272,7 +272,7 @@ impl Parser {
             }
         };
 
-        let conditional = Expr::Conditional {
+        let conditional = Expr::If {
             cond: Box::new(cond),
             then: Box::new(then),
             else_: Box::new(else_),

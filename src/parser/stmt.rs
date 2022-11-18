@@ -1,6 +1,11 @@
 use crate::lexer::token::{Token, TokenKind};
 
-use super::{error::ParseError, expr::{Expr, Block}, structs::Struct, ParseResult, Parser, Type, Variable};
+use super::{
+    error::ParseError,
+    expr::{Block, Expr},
+    structs::Struct,
+    ParseResult, Parser, Type, Variable,
+};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Stmt {
@@ -196,7 +201,14 @@ impl Parser {
 
                     return Ok(block);
                 }
-                _ => return Err(ParseError::MissingSemicolon()),
+                _ => match &stmt {
+                    Stmt::Expr(expr) => match expr {
+                        Expr::If { .. } => body.push(stmt),
+                        _ => return Err(ParseError::MissingSemicolon()),
+                    },
+                    Stmt::While { .. } => body.push(stmt),
+                    _ => return Err(ParseError::MissingSemicolon()),
+                },
             };
 
             if self.is_at_end() {
@@ -215,5 +227,4 @@ impl Parser {
 
         Ok(block)
     }
-
 }
