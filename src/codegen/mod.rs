@@ -14,7 +14,7 @@ use inkwell::{
 use crate::{
     lexer::token::TokenKind,
     parser::{
-        expr::{BinaryExpr, Expr, UnaryExpr},
+        expr::{BinaryExpr, Block, Expr, UnaryExpr},
         stmt::{Function, Prototype, Stmt},
         structs::{FieldAccess, Struct, StructExpr},
         LiteralType, Type,
@@ -287,7 +287,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             Expr::Unary(expr) => self.compile_unary(expr),
             Expr::Variable(var) => self.compile_variable(var.as_str()),
             Expr::FnCall { fn_name, args } => self.compile_fn_call(fn_name, args),
-            Expr::Conditional { cond, then, else_ } => {
+            Expr::If { cond, then, else_ } => {
                 self.compile_conditional(*cond.clone(), *then.clone(), *else_.clone())
             }
             Expr::VariableAssignment { id, rhs } => self.compile_var_assignment(id, rhs),
@@ -607,7 +607,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             (BasicValueEnum::FloatValue(_), BasicValueEnum::FloatValue(_)) => {
                 self.builder.build_phi(self.context.f64_type(), "iftmp")
             }
-            _ => unimplemented!("Only int and float are supported at the moment"),
+            _ => return Err(CodegenError::DifferentReturnTypesBranch()),
         };
 
         phi.add_incoming(&[(&then_val, then_bb), (&else_val, else_bb)]);
@@ -615,7 +615,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         Ok(phi.as_basic_value())
     }
 
-    fn compile_while(&mut self, cond: &Expr, body: &Expr) -> CodegenResult<()> {
+    fn compile_while(&mut self, cond: &Expr, body: &Block) -> CodegenResult<()> {
         let parent = self.fn_value("while loop".to_string())?;
 
         let while_condition_block = self.context.append_basic_block(parent, "while_condition");
@@ -639,7 +639,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
 
         self.builder.position_at_end(while_block);
 
-        self.compile_expr(body)?;
+        self.compile_block(&body.body, body.return_expr.clone().map(|x| *x))?;
 
         self.builder
             .build_unconditional_branch(while_condition_block);
