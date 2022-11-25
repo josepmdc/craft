@@ -28,10 +28,16 @@ pub struct StructField {
     pub rhs: Expr,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct FieldAccess {
     pub variable_id: String,
-    pub field_id: String,
+    pub field: Box<FieldAccessField>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum FieldAccessField {
+    PrimitiveField(String),
+    StructField(Expr),
 }
 
 impl Parser {
@@ -135,15 +141,15 @@ impl Parser {
 
         self.consume(TokenKind::Dot, ParseError::ExpectedDot(struct_id.clone()))?;
 
-        let field_id = self.consume_identifier()?;
-
-        let field_access = FieldAccess {
+        let field_access = Expr::FieldAccess(FieldAccess {
             variable_id: struct_id,
-            field_id,
-        };
+            field: Box::from(match self.peek().kind {
+                TokenKind::Dot => FieldAccessField::StructField(self.parse_field_access()?),
+                _ => FieldAccessField::PrimitiveField(self.consume_identifier()?),
+            }),
+        });
 
         trace!("Parsed access to struct field: {:#?}", field_access);
-
-        Ok(Expr::FieldAccess(field_access))
+        Ok(field_access)
     }
 }

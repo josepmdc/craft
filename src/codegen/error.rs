@@ -4,7 +4,7 @@ use crate::parser::Type;
 
 #[derive(Error, Debug)]
 pub enum CodegenError {
-    #[error("Undeclared variable {0} or out of scope")]
+    #[error("Undeclared variable '{0}' or out of scope")]
     UndeclaredVariableOrOutOfScope(String),
     #[error("Undefined binary operator {0}")]
     UndefinedBinaryOperator(String),

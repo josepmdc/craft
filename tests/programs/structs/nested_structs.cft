@@ -1,5 +1,9 @@
-struct InnerStruct {
+struct InnerInnerStruct {
     field: i64
+}
+
+struct InnerStruct {
+    inner_inner: InnerInnerStruct
 }
 
 struct OuterStruct {
@@ -7,13 +11,15 @@ struct OuterStruct {
 }
 
 fn extract_field(outer: OuterStruct) i64 {
-    outer.inner.field
+    outer.inner.inner_inner.field
 }
 
 fn main() i64 {
     let outer = OuterStruct { 
         inner: InnerStruct {
-            field: 42,
+            inner_inner: InnerInnerStruct {
+                field: 42,
+            },
         },
     };
 

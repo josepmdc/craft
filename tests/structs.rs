@@ -10,7 +10,7 @@ fn simple_struct() {
         .stdout(predicate::str::contains("8"));
 }
 
-#[test] #[ignore]
+#[test]
 fn nested_structs() {
     util::get_bin()
         .arg("tests/programs/structs/nested_structs.cft")
