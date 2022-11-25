@@ -16,7 +16,7 @@ use crate::{
     parser::{
         expr::{BinaryExpr, Block, Expr, UnaryExpr},
         stmt::{Function, Prototype, Stmt},
-        structs::{FieldAccess, Struct, StructExpr},
+        structs::{FieldAccess, FieldAccessField, Struct, StructExpr},
         LiteralType, Type,
     },
 };
@@ -252,32 +252,61 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                 CodegenError::UndeclaredVariableOrOutOfScope(field_access.variable_id.clone())
             })?;
 
+        let field_ptr = self.get_field_ptr(field_access, variable_ptr)?;
+        Ok(self.builder.build_load(field_ptr, "tmp.deref"))
+    }
+
+    fn get_field_ptr(
+        &self,
+        field_access: &FieldAccess,
+        variable_ptr: &PointerValue<'ctx>,
+    ) -> CodegenResult<PointerValue<'ctx>> {
         let struct_type = match variable_ptr.get_type().get_element_type() {
             AnyTypeEnum::StructType(struct_type) => struct_type,
             unexpected_type => Err(CodegenError::ExpectedStruct(unexpected_type.to_string()))?,
         };
 
         let struct_name = struct_type.get_name().unwrap().to_str().unwrap();
+        match *field_access.field.clone() {
+            FieldAccessField::PrimitiveField(id) => {
+                let index = self.get_field_index(id, struct_name.to_string())?;
+                self.build_struct_gep(variable_ptr, index)
+            }
+            FieldAccessField::StructField(field_access) => {
+                let field_access = match field_access {
+                    Expr::FieldAccess(field_access) => field_access,
+                    _ => panic!("Expected field access"),
+                };
 
-        let index = self
+                let index = self
+                    .get_field_index(field_access.variable_id.clone(), struct_name.to_string())?;
+
+                let field_ptr = self.build_struct_gep(variable_ptr, index)?;
+
+                Ok(self.get_field_ptr(&field_access, &field_ptr)?)
+            }
+        }
+    }
+
+    fn build_struct_gep(
+        &self,
+        variable_ptr: &PointerValue<'ctx>,
+        index: u32,
+    ) -> CodegenResult<PointerValue<'ctx>> {
+        self.builder
+            .build_struct_gep(*variable_ptr, index, "tmp.access")
+            .map_err(|_| CodegenError::BuildStructGepFailed())
+    }
+
+    fn get_field_index(&self, identifier: String, struct_name: String) -> CodegenResult<u32> {
+        Ok(self
             .structs
-            .get(struct_name)
-            .ok_or_else(|| CodegenError::UndefinedStruct(struct_name.to_string()))?
+            .get(&struct_name)
+            .ok_or_else(|| CodegenError::UndefinedStruct(struct_name))?
             .fields
-            .get(&field_access.field_id)
-            .ok_or_else(|| CodegenError::UndefinedStructField(field_access.field_id.to_string()))?
-            .index;
-
-        let field_ptr = self
-            .builder
-            .build_struct_gep(
-                *variable_ptr,
-                index,
-                &format!("tmp.access.{}", field_access.field_id),
-            )
-            .map_err(|_| CodegenError::BuildStructGepFailed())?;
-
-        Ok(self.builder.build_load(field_ptr, "tmp.deref"))
+            .get(&identifier)
+            .ok_or_else(|| CodegenError::UndefinedStructField(identifier))?
+            .index)
     }
 
     fn compile_expr(&mut self, expr: &Expr) -> CodegenResult<BasicValueEnum<'ctx>> {

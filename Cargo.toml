@@ -16,3 +16,7 @@ package = "inkwell"
 git = "https://github.com/TheDan64/inkwell"
 branch = "master"
 features = ["llvm14-0"]
+
+[dev-dependencies]
+assert_cmd = "2.0"
+predicates = "2.1"

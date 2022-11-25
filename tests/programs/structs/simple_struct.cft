@@ -1,0 +1,12 @@
+struct SomeStruct {
+    first: i64
+    second: i64
+}
+
+fn add_fields(a: SomeStruct) i64 {
+    a.first + a.second
+}
+
+fn main() i64 {
+    add_fields(SomeStruct { first: 5, second: 3, })
+}
