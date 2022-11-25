@@ -115,6 +115,6 @@ fn run_jit(module: &Module) {
     };
 
     unsafe {
-        println!("=> {}", compiled_fn.call());
+        println!("{}", compiled_fn.call());
     }
 }

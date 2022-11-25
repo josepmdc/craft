@@ -8,8 +8,8 @@ pub fn report(line: i32, col: i32, message: String) {
 
 #[derive(Error, Debug)]
 pub enum CompilerError {
-    #[error("Parsing Error: {0}")]
+    #[error("Parse Error: {0}")]
     ParseError(#[from] ParseError),
-    #[error("Compiling Error: {0}")]
+    #[error("Compile Error: {0}")]
     CodegenError(#[from] CodegenError),
 }
