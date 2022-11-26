@@ -1,0 +1,4 @@
+fn main() {
+    let xd = "xd";
+    printf("asdf -> %s\n", xd);
+}

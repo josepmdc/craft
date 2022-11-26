@@ -32,18 +32,13 @@ pub struct Block {
 pub enum Expr {
     Binary(BinaryExpr),
     Unary(UnaryExpr),
-    Literal {
-        value: LiteralType,
-    },
+    Literal(LiteralType),
     Variable(String),
     VariableAssignment {
         id: String,
         rhs: Box<Expr>,
     },
-    FnCall {
-        fn_name: String,
-        args: Vec<Expr>,
-    },
+    FnCall(FnCall),
     If {
         cond: Box<Expr>,
         then: Box<Expr>,
@@ -52,6 +47,12 @@ pub enum Expr {
     Block(Block),
     Struct(StructExpr),
     FieldAccess(FieldAccess),
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct FnCall {
+    pub fn_name: String,
+    pub args: Vec<Expr>,
 }
 
 impl Parser {
@@ -181,33 +182,23 @@ impl Parser {
         let expr = match self.current().to_owned().kind {
             TokenKind::False => {
                 self.advance()?;
-                Expr::Literal {
-                    value: LiteralType::Boolean(false),
-                }
+                Expr::Literal(LiteralType::Boolean(false))
             }
             TokenKind::True => {
                 self.advance()?;
-                Expr::Literal {
-                    value: LiteralType::Boolean(true),
-                }
+                Expr::Literal(LiteralType::Boolean(true))
             }
             TokenKind::String(literal) => {
                 self.advance()?;
-                Expr::Literal {
-                    value: LiteralType::String(literal),
-                }
+                Expr::Literal(LiteralType::String(literal))
             }
             TokenKind::F64(literal) => {
                 self.advance()?;
-                Expr::Literal {
-                    value: LiteralType::F64(literal),
-                }
+                Expr::Literal(LiteralType::F64(literal))
             }
             TokenKind::I64(literal) => {
                 self.advance()?;
-                Expr::Literal {
-                    value: LiteralType::I64(literal),
-                }
+                Expr::Literal(LiteralType::I64(literal))
             }
             TokenKind::LeftParen => self.parse_grouping()?,
             TokenKind::Identifier(_) => self.parse_id_expr()?,
@@ -229,7 +220,7 @@ impl Parser {
     fn parse_id_expr(&mut self) -> ParseResult<Expr> {
         trace!("Parsing identifier expr");
         match self.peek().kind {
-            TokenKind::LeftParen => self.parse_fn_call(),
+            TokenKind::LeftParen => Ok(Expr::FnCall(self.parse_fn_call()?)),
             TokenKind::Equal => self.parse_var_assignment(),
             TokenKind::LeftBrace => self.parse_struct_expr(),
             TokenKind::Dot => self.parse_field_access(),
@@ -290,7 +281,7 @@ impl Parser {
         Ok(expr)
     }
 
-    pub fn parse_fn_call(&mut self) -> ParseResult<Expr> {
+    pub fn parse_fn_call(&mut self) -> ParseResult<FnCall> {
         trace!("Parsing fn call");
         let name = self.current().lexeme.clone();
         self.advance()?; // Skip identifier
@@ -299,7 +290,7 @@ impl Parser {
 
         if let TokenKind::RightParen = self.current().kind {
             self.advance()?; // Skip closing ')'
-            return Ok(Expr::FnCall {
+            return Ok(FnCall {
                 fn_name: name,
                 args: vec![],
             });
@@ -323,7 +314,7 @@ impl Parser {
             };
         }
 
-        let expr = Expr::FnCall {
+        let expr = FnCall {
             fn_name: name,
             args,
         };
@@ -335,5 +326,15 @@ impl Parser {
 
     pub fn parse_block_expr(&mut self) -> ParseResult<Expr> {
         Ok(Expr::Block(self.parse_block()?))
+    }
+
+    pub fn consume_string(&mut self) -> ParseResult<String> {
+        match self.current().kind.clone() {
+            TokenKind::String(str) => {
+                self.advance()?;
+                Ok(str)
+            }
+            _ => Err(ParseError::ExpectedString()),
+        }
     }
 }

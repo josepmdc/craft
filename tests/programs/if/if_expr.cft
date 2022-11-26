@@ -2,6 +2,8 @@ fn max(a: i64, b: i64) i64 {
     if (a >= b) { a } else { b }
 }
 
-fn main() i64 {
-    max(20, 30)
+fn main() {
+    printf("%d",
+        max(20, 30)
+    );
 }

@@ -13,7 +13,7 @@ fn while_increment() {
 #[test]
 fn fib_iter() {
     util::get_bin()
-        .arg("tests/programs/while/fib.cft")
+        .arg("tests/programs/while/fib_iter.cft")
         .assert()
         .success()
         .stdout(predicate::str::contains("6765"));

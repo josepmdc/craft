@@ -147,7 +147,7 @@ mod tests {
             token::{Location, Token, TokenKind},
         },
         parser::{
-            expr::{BinaryExpr, Expr},
+            expr::{BinaryExpr, Expr, FnCall},
             stmt::{Function, Prototype, Stmt},
             LiteralType, Type, Variable,
         },
@@ -165,9 +165,7 @@ mod tests {
         trace!("AST for {}: \n{:#?}", src, actual_ast);
 
         let expected_ast = Stmt::Expr(Expr::Binary(BinaryExpr {
-            left: Box::new(Expr::Literal {
-                value: LiteralType::I64(2),
-            }),
+            left: Box::new(Expr::Literal(LiteralType::I64(2))),
             operator: Token {
                 kind: TokenKind::Plus,
                 lexeme: "+".to_string(),
@@ -175,26 +173,20 @@ mod tests {
             },
             right: Box::new(Expr::Binary(BinaryExpr {
                 left: Box::new(Expr::Binary(BinaryExpr {
-                    left: Box::new(Expr::Literal {
-                        value: LiteralType::I64(2),
-                    }),
+                    left: Box::new(Expr::Literal(LiteralType::I64(2))),
                     operator: Token {
                         kind: TokenKind::Star,
                         lexeme: "*".to_string(),
                         loc: Location { col: 7, line: 1 },
                     },
-                    right: Box::new(Expr::Literal {
-                        value: LiteralType::I64(3),
-                    }),
+                    right: Box::new(Expr::Literal(LiteralType::I64(3))),
                 })),
                 operator: Token {
                     kind: TokenKind::Slash,
                     lexeme: "/".to_string(),
                     loc: Location { col: 11, line: 1 },
                 },
-                right: Box::new(Expr::Literal {
-                    value: LiteralType::I64(2),
-                }),
+                right: Box::new(Expr::Literal(LiteralType::I64(2))),
             })),
         }));
 
@@ -214,35 +206,27 @@ mod tests {
         let expected_ast = Stmt::Expr(Expr::Binary(BinaryExpr {
             left: Box::new(Expr::Binary(BinaryExpr {
                 left: Box::new(Expr::Binary(BinaryExpr {
-                    left: Box::new(Expr::Literal {
-                        value: LiteralType::I64(2),
-                    }),
+                    left: Box::new(Expr::Literal(LiteralType::I64(2))),
                     operator: Token {
                         kind: TokenKind::Plus,
                         lexeme: "+".to_string(),
                         loc: Location { col: 4, line: 1 },
                     },
-                    right: Box::new(Expr::Literal {
-                        value: LiteralType::I64(2),
-                    }),
+                    right: Box::new(Expr::Literal(LiteralType::I64(2))),
                 })),
                 operator: Token {
                     kind: TokenKind::Star,
                     lexeme: "*".to_string(),
                     loc: Location { col: 9, line: 1 },
                 },
-                right: Box::new(Expr::Literal {
-                    value: LiteralType::I64(3),
-                }),
+                right: Box::new(Expr::Literal(LiteralType::I64(3))),
             })),
             operator: Token {
                 kind: TokenKind::Slash,
                 lexeme: "/".to_string(),
                 loc: Location { col: 13, line: 1 },
             },
-            right: Box::new(Expr::Literal {
-                value: LiteralType::I64(2),
-            }),
+            right: Box::new(Expr::Literal(LiteralType::I64(2))),
         }));
 
         assert_eq!(actual_ast.len(), 1);
@@ -282,17 +266,13 @@ mod tests {
             },
             body: vec![],
             return_expr: Some(Expr::Binary(BinaryExpr {
-                left: Box::new(Expr::Literal {
-                    value: LiteralType::I64(2),
-                }),
+                left: Box::new(Expr::Literal(LiteralType::I64(2))),
                 operator: Token {
                     kind: TokenKind::Plus,
                     lexeme: "+".to_string(),
                     loc: Location { col: 18, line: 3 },
                 },
-                right: Box::new(Expr::Literal {
-                    value: LiteralType::I64(2),
-                }),
+                right: Box::new(Expr::Literal(LiteralType::I64(2))),
             })),
             is_builtin: false,
         };
@@ -320,13 +300,13 @@ mod tests {
                 params: vec![],
                 return_type: Type::Void,
             },
-            body: vec![Stmt::Expr(Expr::FnCall {
+            body: vec![Stmt::Expr(Expr::FnCall(FnCall {
                 fn_name: "some_fn".to_string(),
                 args: vec![
                     Expr::Variable("a".to_string()),
                     Expr::Variable("b".to_string()),
                 ],
-            })],
+            }))],
             return_expr: None,
             is_builtin: false,
         });

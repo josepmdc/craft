@@ -14,6 +14,7 @@ pub enum Stmt {
     Var { token: Token, initializer: Expr },
     Expr(Expr),
     While { cond: Expr, body: Block },
+    Printf { fmt_string: String, args: Vec<Expr> },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -36,6 +37,7 @@ impl Parser {
         let expr = match self.current().kind {
             TokenKind::VarDeclaration => self.parse_var_declaration()?,
             TokenKind::While => self.parse_while()?,
+            TokenKind::Printf => self.parse_printf()?,
             _ => self.parse_expr_stmt()?,
         };
         Ok(expr)
@@ -202,10 +204,7 @@ impl Parser {
                     return Ok(block);
                 }
                 _ => match &stmt {
-                    Stmt::Expr(expr) => match expr {
-                        Expr::If { .. } => body.push(stmt),
-                        _ => return Err(ParseError::MissingSemicolon()),
-                    },
+                    Stmt::Expr(Expr::If { .. }) => body.push(stmt),
                     Stmt::While { .. } => body.push(stmt),
                     _ => return Err(ParseError::MissingSemicolon()),
                 },
@@ -226,5 +225,45 @@ impl Parser {
         trace!("Parsed block: {:#?}", block);
 
         Ok(block)
+    }
+
+    fn parse_printf(&mut self) -> ParseResult<Stmt> {
+        trace!("Parsing printf");
+        self.consume(
+            TokenKind::Printf,
+            ParseError::UnexpectedToken(self.current().lexeme.clone()),
+        )?;
+
+        self.consume(TokenKind::LeftParen, ParseError::MissingLeftParen())?;
+
+        let fmt_string = self.consume_string()?;
+
+        let mut args = vec![];
+        match self.current().kind {
+            TokenKind::RightParen => (),
+            TokenKind::Comma => {
+                self.advance()?;
+                while self.current().kind != TokenKind::RightParen {
+                    args.push(self.parse_expr()?);
+
+                    match self.current().kind {
+                        TokenKind::Comma => {
+                            self.advance()?;
+                        }
+                        TokenKind::RightParen => (),
+                        _ => return Err(ParseError::MissingCommaOrRightParen()),
+                    };
+                }
+            }
+            _ => return Err(ParseError::MissingCommaOrRightParen()),
+        };
+
+        self.advance()?;
+
+        let printf = Stmt::Printf { fmt_string, args };
+
+        trace!("Parsed printf: {:#?}", printf);
+
+        Ok(printf)
     }
 }

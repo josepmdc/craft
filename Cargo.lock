@@ -79,7 +79,6 @@ dependencies = [
  "assert_cmd",
  "env_logger",
  "inkwell",
- "llvm-sys",
  "log",
  "predicates",
  "thiserror",

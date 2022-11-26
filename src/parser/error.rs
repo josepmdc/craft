@@ -38,6 +38,8 @@ pub enum ParseError {
     ExpectedIdentifier(),
     #[error("Redefined field {0} in struct {1}")]
     RedefinedField(String, String),
+    #[error("Expected a string")]
+    ExpectedString(),
 }
 
 pub fn report(token: &Token, error: ParseError) -> ParseError {
