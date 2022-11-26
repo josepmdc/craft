@@ -407,7 +407,10 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             LiteralType::I64(number) => Ok(BasicValueEnum::IntValue(
                 self.context.i64_type().const_int(*number as u64, false),
             )),
-            LiteralType::String(_) => todo!(),
+            LiteralType::String(str) => Ok(self
+                .builder
+                .build_global_string_ptr(&str, "tmp.literalstr")
+                .as_basic_value_enum()),
         }
     }
 
