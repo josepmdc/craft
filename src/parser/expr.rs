@@ -332,7 +332,7 @@ impl Parser {
         match self.current().kind.clone() {
             TokenKind::String(str) => {
                 self.advance()?;
-                Ok(str.to_string())
+                Ok(str)
             }
             _ => Err(ParseError::ExpectedString()),
         }

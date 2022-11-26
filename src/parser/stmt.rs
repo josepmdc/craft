@@ -204,10 +204,7 @@ impl Parser {
                     return Ok(block);
                 }
                 _ => match &stmt {
-                    Stmt::Expr(expr) => match expr {
-                        Expr::If { .. } => body.push(stmt),
-                        _ => return Err(ParseError::MissingSemicolon()),
-                    },
+                    Stmt::Expr(Expr::If { .. }) => body.push(stmt),
                     Stmt::While { .. } => body.push(stmt),
                     _ => return Err(ParseError::MissingSemicolon()),
                 },

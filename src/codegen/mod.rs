@@ -310,10 +310,10 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         Ok(self
             .structs
             .get(&struct_name)
-            .ok_or_else(|| CodegenError::UndefinedStruct(struct_name))?
+            .ok_or(CodegenError::UndefinedStruct(struct_name))?
             .fields
             .get(&identifier)
-            .ok_or_else(|| CodegenError::UndefinedStructField(identifier))?
+            .ok_or(CodegenError::UndefinedStructField(identifier))?
             .index)
     }
 
@@ -409,7 +409,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             )),
             LiteralType::String(str) => Ok(self
                 .builder
-                .build_global_string_ptr(&str, "tmp.literalstr")
+                .build_global_string_ptr(str, "tmp.literalstr")
                 .as_basic_value_enum()),
         }
     }
