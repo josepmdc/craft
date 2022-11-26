@@ -1,4 +1,4 @@
-fn fib_iter(n: i64) i64 {
+fn fib(n: i64) i64 {
     let curr = 1;
     let prev = 0;
     let prev_prev = 0;
@@ -14,6 +14,8 @@ fn fib_iter(n: i64) i64 {
     curr
 }
 
-fn main() i64 {
-    fib_iter(20)
+fn main() {
+    printf("%d",
+        fib(20)
+    );
 }

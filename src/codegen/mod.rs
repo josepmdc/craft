@@ -1,3 +1,4 @@
+mod builtin;
 pub mod error;
 
 use std::collections::HashMap;
@@ -14,7 +15,7 @@ use inkwell::{
 use crate::{
     lexer::token::TokenKind,
     parser::{
-        expr::{BinaryExpr, Block, Expr, UnaryExpr},
+        expr::{BinaryExpr, Block, Expr, FnCall, UnaryExpr},
         stmt::{Function, Prototype, Stmt},
         structs::{FieldAccess, FieldAccessField, Struct, StructExpr},
         LiteralType, Type,
@@ -49,6 +50,10 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             structs: HashMap::new(),
             fn_value_opt: None,
         }
+    }
+
+    pub fn compile_builtin(&self) {
+        self.build_printf();
     }
 
     // Creates a new stack allocation instruction in the entry block of the function.
@@ -168,6 +173,9 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             }
             Stmt::While { cond, body } => {
                 self.compile_while(cond, body)?;
+            }
+            Stmt::Printf { fmt_string, args } => {
+                self.compile_printf(fmt_string.clone(), args.clone())?;
             }
             _ => todo!(),
         };
@@ -311,11 +319,11 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
 
     fn compile_expr(&mut self, expr: &Expr) -> CodegenResult<BasicValueEnum<'ctx>> {
         match expr {
-            Expr::Literal { value } => self.compile_literal(value),
+            Expr::Literal(value) => self.compile_literal(value),
             Expr::Binary(expr) => self.compile_binary(expr),
             Expr::Unary(expr) => self.compile_unary(expr),
             Expr::Variable(var) => self.compile_variable(var.as_str()),
-            Expr::FnCall { fn_name, args } => self.compile_fn_call(fn_name, args),
+            Expr::FnCall(fn_call) => self.compile_fn_call(fn_call.clone()),
             Expr::If { cond, then, else_ } => {
                 self.compile_conditional(*cond.clone(), *then.clone(), *else_.clone())
             }
@@ -361,17 +369,13 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         Ok(())
     }
 
-    fn compile_fn_call(
-        &mut self,
-        fn_name: &String,
-        args: &Vec<Expr>,
-    ) -> CodegenResult<BasicValueEnum<'ctx>> {
-        match self.module.get_function(fn_name.as_str()) {
+    fn compile_fn_call(&mut self, fn_call: FnCall) -> CodegenResult<BasicValueEnum<'ctx>> {
+        match self.module.get_function(fn_call.fn_name.as_str()) {
             Some(fun) => {
-                let mut compiled_args = Vec::with_capacity(args.len());
+                let mut compiled_args = Vec::with_capacity(fn_call.args.len());
 
-                for arg in args {
-                    compiled_args.push(self.compile_expr(arg)?);
+                for arg in fn_call.args {
+                    compiled_args.push(self.compile_expr(&arg)?);
                 }
 
                 let argsv: Vec<BasicMetadataValueEnum> = compiled_args
@@ -387,10 +391,10 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                     .left()
                 {
                     Some(value) => Ok(value),
-                    None => Err(CodegenError::InvalidCall(fn_name.to_owned())),
+                    None => Err(CodegenError::InvalidCall(fn_call.fn_name.to_owned())),
                 }
             }
-            None => Err(CodegenError::UnkownFunction(fn_name.to_owned())),
+            None => Err(CodegenError::UnkownFunction(fn_call.fn_name.to_owned())),
         }
     }
 
@@ -688,6 +692,42 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                 .ok_or_else(|| CodegenError::UndefinedStruct(id.clone()))?
                 .into()),
             invalid_type => Err(CodegenError::InvalidType(invalid_type.clone())),
+        }
+    }
+
+    fn compile_printf(
+        &mut self,
+        fmt_string: String,
+        args: Vec<Expr>,
+    ) -> CodegenResult<BasicValueEnum> {
+        match self.module.get_function("printf") {
+            Some(func) => {
+                let mut printf_args = Vec::new();
+
+                printf_args.push(
+                    self.builder
+                        .build_global_string_ptr(&fmt_string, "fmt_string")
+                        .as_basic_value_enum(),
+                );
+
+                for arg in args {
+                    printf_args.push(self.compile_expr(&arg)?)
+                }
+
+                let argsv: Vec<BasicMetadataValueEnum> =
+                    printf_args.iter().by_ref().map(|&val| val.into()).collect();
+
+                match self
+                    .builder
+                    .build_call(func, &argsv, "tmp.printf_call")
+                    .try_as_basic_value()
+                    .left()
+                {
+                    Some(value) => Ok(value),
+                    None => Err(CodegenError::InvalidCall("printf".to_string())),
+                }
+            }
+            None => Err(CodegenError::UnkownFunction("printf".to_string())),
         }
     }
 }

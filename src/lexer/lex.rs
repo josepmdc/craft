@@ -116,6 +116,7 @@ impl Scanner {
             "if" => Some(TokenKind::If),
             "else" => Some(TokenKind::Else),
             "while" => Some(TokenKind::While),
+            "printf" => Some(TokenKind::Printf),
             "struct" => Some(TokenKind::Struct),
             _ => None,
         }
@@ -179,6 +180,8 @@ impl Scanner {
             .get((self.start + 1)..(self.current_idx - 1))
             .expect("[String] Could not get substring")
             .to_string();
+
+        let literal = literal.replace("\\n", "\n");
 
         self.add_token(TokenKind::String(literal));
     }

@@ -6,6 +6,8 @@ fn fib(n: i64) i64 {
     }
 }
 
-fn main() i64 {
-    fib(20)
+fn main() {
+    printf("%d",
+        fib(20)
+    );
 }

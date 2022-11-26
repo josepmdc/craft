@@ -47,6 +47,7 @@ pub enum TokenKind {
     Or,
     Struct,
     Dot,
+    Printf,
 }
 
 #[derive(Debug, Clone, PartialEq)]
