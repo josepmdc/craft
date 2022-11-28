@@ -9,7 +9,7 @@ use inkwell::{
     module::Module,
     types::{AnyTypeEnum, BasicMetadataTypeEnum, BasicType, BasicTypeEnum, StructType},
     values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue, PointerValue},
-    FloatPredicate, IntPredicate,
+    AddressSpace, FloatPredicate, IntPredicate,
 };
 
 use crate::{
@@ -148,6 +148,11 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             Type::F64 => self.context.f64_type().fn_type(&param_types, false),
             Type::I64 => self.context.i64_type().fn_type(&param_types, false),
             Type::Void => self.context.void_type().fn_type(&param_types, false),
+            Type::String => self
+                .context
+                .i8_type()
+                .ptr_type(AddressSpace::Generic)
+                .fn_type(&param_types, false),
             invalid_type => return Err(CodegenError::InvalidType(invalid_type.clone())),
         };
 
@@ -693,6 +698,11 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                 .module
                 .get_struct_type(id)
                 .ok_or_else(|| CodegenError::UndefinedStruct(id.clone()))?
+                .into()),
+            Type::String => Ok(self
+                .context
+                .i8_type()
+                .ptr_type(AddressSpace::Generic)
                 .into()),
             invalid_type => Err(CodegenError::InvalidType(invalid_type.clone())),
         }

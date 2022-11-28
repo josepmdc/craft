@@ -1,4 +1,8 @@
+fn print_str(str: string) i64 {
+    printf("asdf -> %s\n", str);
+    0
+}
+
 fn main() {
-    let xd = "xd";
-    printf("asdf -> %s\n", xd);
+    print_str("str");
 }
