@@ -405,7 +405,10 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
 
     fn compile_literal(&self, literal: &LiteralType) -> CodegenResult<BasicValueEnum<'ctx>> {
         match literal {
-            LiteralType::Boolean(_) => todo!(),
+            LiteralType::Boolean(bool) => Ok(match bool {
+                true => self.context.custom_width_int_type(1).const_all_ones().into(),
+                false => self.context.custom_width_int_type(1).const_zero().into(),
+            }),
             LiteralType::F64(number) => Ok(BasicValueEnum::FloatValue(
                 self.context.f64_type().const_float(*number),
             )),
