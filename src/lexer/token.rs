@@ -21,6 +21,8 @@ pub enum TokenKind {
     RightParen,
     LeftBrace,
     RightBrace,
+    LeftBracket,
+    RightBracket,
     F64(f64),
     I64(i64),
     String(String),

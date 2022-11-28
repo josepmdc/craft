@@ -100,7 +100,9 @@ impl Parser {
                 self.advance()?;
                 self.parse_type(id)
             }
-            _ => Type::Void,
+            TokenKind::LeftBracket => self.parse_array_type()?,
+            TokenKind::LeftBrace => Type::Void,
+            _ => return Err(ParseError::UnexpectedToken(self.current().lexeme.clone())),
         };
 
         let proto = Prototype {
@@ -140,6 +142,9 @@ impl Parser {
             )?;
 
             match &self.current().kind {
+                TokenKind::LeftBracket => {
+                    param.type_ = self.parse_array_type()?;
+                }
                 TokenKind::Identifier(id) => {
                     param.type_ = self.parse_type(id.clone());
                     self.advance()?;

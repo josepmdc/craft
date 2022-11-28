@@ -24,6 +24,12 @@ pub enum Type {
     String,
     Struct(String),
     Void,
+    Array(Array),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Array {
+    type_: Box<Type>,
 }
 
 impl Default for Type {
@@ -76,6 +82,19 @@ impl Parser {
             "string" => Type::String,
             _ => Type::Struct(id),
         }
+    }
+
+    fn parse_array_type(&mut self) -> ParseResult<Type> {
+        self.consume(TokenKind::LeftBracket, ParseError::ExpectedLeftBracket())?;
+
+        let id = self.consume_identifier()?;
+        let array = Array {
+            type_: Box::new(self.parse_type(id)),
+        };
+
+        self.consume(TokenKind::RightBracket, ParseError::ExpectedRightBracket())?;
+
+        Ok(Type::Array(array))
     }
 
     fn match_any<const L: usize>(&self, types: [TokenKind; L]) -> bool {
