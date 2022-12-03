@@ -18,7 +18,7 @@ use crate::{
         expr::{BinaryExpr, Block, Expr, FnCall, UnaryExpr},
         stmt::{Function, Prototype, Stmt},
         structs::{FieldAccess, FieldAccessField, Struct, StructExpr},
-        LiteralType, Type,
+        ArrayType, LiteralType, Type,
     },
 };
 
@@ -152,6 +152,10 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                 .context
                 .i8_type()
                 .ptr_type(AddressSpace::Generic)
+                .fn_type(&param_types, false),
+            Type::Array(arr) => self
+                .get_llvm_type(&arr.type_)?
+                .array_type(arr.size)
                 .fn_type(&param_types, false),
             invalid_type => return Err(CodegenError::InvalidType(invalid_type.clone())),
         };
@@ -342,6 +346,31 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             ),
             Expr::Struct(struct_) => self.compile_struct_expr(struct_),
             Expr::FieldAccess(field_access) => self.compile_field_access(field_access),
+            Expr::Array(type_, items) => {
+                let type_ = self.get_llvm_type(&Type::Array(ArrayType {
+                    type_: Box::new(type_.clone()),
+                    size: items.len() as u32,
+                }))?;
+
+                let ptr = self.create_entry_block_alloca("tmp.arr", type_);
+
+                let zero = self.context.i64_type().const_zero();
+
+                for (i, item) in items.iter().enumerate() {
+                    let compiled_expr = self.compile_expr(item)?;
+
+                    let index = self.context.i64_type().const_int(i as u64, false);
+
+                    let item_ptr = unsafe {
+                        self.builder
+                            .build_in_bounds_gep(ptr, &[zero, index], "arr.gep")
+                    };
+
+                    self.builder.build_store(item_ptr, compiled_expr);
+                }
+
+                Ok(ptr.into())
+            }
         }
     }
 
@@ -406,7 +435,11 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
     fn compile_literal(&self, literal: &LiteralType) -> CodegenResult<BasicValueEnum<'ctx>> {
         match literal {
             LiteralType::Boolean(bool) => Ok(match bool {
-                true => self.context.custom_width_int_type(1).const_all_ones().into(),
+                true => self
+                    .context
+                    .custom_width_int_type(1)
+                    .const_all_ones()
+                    .into(),
                 false => self.context.custom_width_int_type(1).const_zero().into(),
             }),
             LiteralType::F64(number) => Ok(BasicValueEnum::FloatValue(
@@ -707,6 +740,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                 .i8_type()
                 .ptr_type(AddressSpace::Generic)
                 .into()),
+            Type::Array(arr) => Ok(self.get_llvm_type(&arr.type_)?.array_type(arr.size).into()),
             invalid_type => Err(CodegenError::InvalidType(invalid_type.clone())),
         }
     }

@@ -24,12 +24,13 @@ pub enum Type {
     String,
     Struct(String),
     Void,
-    Array(Array),
+    Array(ArrayType),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Array {
-    type_: Box<Type>,
+pub struct ArrayType {
+    pub type_: Box<Type>,
+    pub size: u32,
 }
 
 impl Default for Type {
@@ -88,8 +89,18 @@ impl Parser {
         self.consume(TokenKind::LeftBracket, ParseError::ExpectedLeftBracket())?;
 
         let id = self.consume_identifier()?;
-        let array = Array {
+        self.consume(TokenKind::Semicolon, ParseError::MissingSemicolon())?;
+
+        let size = match self.current().kind {
+            TokenKind::I64(size) => size,
+            _ => return  Err(ParseError::ExpectedInteger())
+        } as u32; // TODO should check for u32 instead of casting here but only i64 is supported ATM
+
+        self.advance()?;
+
+        let array = ArrayType {
             type_: Box::new(self.parse_type(id)),
+            size,
         };
 
         self.consume(TokenKind::RightBracket, ParseError::ExpectedRightBracket())?;

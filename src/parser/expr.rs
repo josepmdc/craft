@@ -6,7 +6,7 @@ use crate::{
 use super::{
     stmt::Stmt,
     structs::{FieldAccess, StructExpr},
-    LiteralType, ParseResult, Parser,
+    LiteralType, ParseResult, Parser, Type,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -47,6 +47,7 @@ pub enum Expr {
     Block(Block),
     Struct(StructExpr),
     FieldAccess(FieldAccess),
+    Array(Type, Vec<Expr>),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -202,6 +203,7 @@ impl Parser {
             }
             TokenKind::LeftParen => self.parse_grouping()?,
             TokenKind::LeftBrace => self.parse_block_expr()?,
+            TokenKind::LeftBracket => self.parse_array_declaration()?,
             TokenKind::Identifier(_) => self.parse_id_expr()?,
             TokenKind::If => self.parse_if()?,
             _ => {
@@ -307,10 +309,7 @@ impl Parser {
                     self.advance()?;
                     break;
                 }
-                _ => {
-                    debug!("Expected comma or RightParen, found: {:#?}", self.current());
-                    return Err(ParseError::MissingCommaOrRightParen());
-                }
+                _ => return Err(ParseError::MissingCommaOrRightParen()),
             };
         }
 
@@ -336,5 +335,34 @@ impl Parser {
             }
             _ => Err(ParseError::ExpectedString()),
         }
+    }
+
+    fn parse_array_declaration(&mut self) -> ParseResult<Expr> {
+        trace!("Parsing array decalration");
+        self.consume(TokenKind::LeftBracket, ParseError::ExpectedLeftBracket())?;
+
+        let mut items = vec![];
+
+        loop {
+            items.push(self.parse_expr()?);
+
+            match self.current().kind {
+                TokenKind::Comma => self.advance()?,
+                TokenKind::RightBracket => {
+                    self.advance()?;
+                    break;
+                }
+                _ => return Err(ParseError::ExpectedRightBracket()),
+            };
+        }
+
+        let id = self.consume_identifier()?;
+        let type_ = self.parse_type(id);
+
+        let arr = Expr::Array(type_, items);
+
+        trace!("Parsed arr decalration: {:#?}", arr);
+
+        Ok(arr)
     }
 }
