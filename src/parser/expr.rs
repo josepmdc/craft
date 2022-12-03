@@ -48,6 +48,13 @@ pub enum Expr {
     Struct(StructExpr),
     FieldAccess(FieldAccess),
     Array(Type, Vec<Expr>),
+    ArrayAccess(ArrayAccess),
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ArrayAccess {
+    pub variable_id: String,
+    pub index: Box<Expr>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -226,6 +233,7 @@ impl Parser {
             TokenKind::Equal => self.parse_var_assignment(),
             TokenKind::LeftBrace => self.parse_struct_expr(),
             TokenKind::Dot => self.parse_field_access(),
+            TokenKind::LeftBracket => self.parse_array_access(),
             _ => {
                 let name = self.current().lexeme.clone();
                 self.advance()?;
@@ -364,5 +372,22 @@ impl Parser {
         trace!("Parsed arr decalration: {:#?}", arr);
 
         Ok(arr)
+    }
+
+    fn parse_array_access(&mut self) -> ParseResult<Expr> {
+        trace!("Parsing array access");
+        let variable_id = self.consume_identifier()?;
+
+        self.consume(TokenKind::LeftBracket, ParseError::ExpectedLeftBracket())?;
+
+        let index = Box::new(self.parse_expr()?);
+
+        self.consume(TokenKind::RightBracket, ParseError::ExpectedRightBracket())?;
+
+        let access = Expr::ArrayAccess(ArrayAccess { variable_id, index });
+
+        trace!("Parsed array access: {:#?}", access);
+
+        Ok(access)
     }
 }

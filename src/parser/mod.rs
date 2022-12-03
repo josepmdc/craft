@@ -91,12 +91,7 @@ impl Parser {
         let id = self.consume_identifier()?;
         self.consume(TokenKind::Semicolon, ParseError::MissingSemicolon())?;
 
-        let size = match self.current().kind {
-            TokenKind::I64(size) => size,
-            _ => return  Err(ParseError::ExpectedInteger())
-        } as u32; // TODO should check for u32 instead of casting here but only i64 is supported ATM
-
-        self.advance()?;
+        let size = self.consume_i64()? as u32; // TODO should check for u32 instead of casting here but only i64 is supported ATM
 
         let array = ArrayType {
             type_: Box::new(self.parse_type(id)),
@@ -134,6 +129,16 @@ impl Parser {
                 Ok(id)
             }
             _ => Err(ParseError::ExpectedIdentifier()),
+        }
+    }
+
+    fn consume_i64(&mut self) -> ParseResult<i64> {
+        match self.current().kind {
+            TokenKind::I64(int) => {
+                self.advance()?;
+                Ok(int)
+            }
+            _ => Err(ParseError::ExpectedInteger()),
         }
     }
 

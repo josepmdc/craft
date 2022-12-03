@@ -15,7 +15,7 @@ use inkwell::{
 use crate::{
     lexer::token::TokenKind,
     parser::{
-        expr::{BinaryExpr, Block, Expr, FnCall, UnaryExpr},
+        expr::{ArrayAccess, BinaryExpr, Block, Expr, FnCall, UnaryExpr},
         stmt::{Function, Prototype, Stmt},
         structs::{FieldAccess, FieldAccessField, Struct, StructExpr},
         ArrayType, LiteralType, Type,
@@ -346,31 +346,8 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             ),
             Expr::Struct(struct_) => self.compile_struct_expr(struct_),
             Expr::FieldAccess(field_access) => self.compile_field_access(field_access),
-            Expr::Array(type_, items) => {
-                let type_ = self.get_llvm_type(&Type::Array(ArrayType {
-                    type_: Box::new(type_.clone()),
-                    size: items.len() as u32,
-                }))?;
-
-                let ptr = self.create_entry_block_alloca("tmp.arr", type_);
-
-                let zero = self.context.i64_type().const_zero();
-
-                for (i, item) in items.iter().enumerate() {
-                    let compiled_expr = self.compile_expr(item)?;
-
-                    let index = self.context.i64_type().const_int(i as u64, false);
-
-                    let item_ptr = unsafe {
-                        self.builder
-                            .build_in_bounds_gep(ptr, &[zero, index], "arr.gep")
-                    };
-
-                    self.builder.build_store(item_ptr, compiled_expr);
-                }
-
-                Ok(ptr.into())
-            }
+            Expr::Array(type_, items) => self.compile_array(type_, items),
+            Expr::ArrayAccess(access) => self.compile_array_access(access),
         }
     }
 
@@ -779,5 +756,60 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             }
             None => Err(CodegenError::UnkownFunction("printf".to_string())),
         }
+    }
+
+    fn compile_array(
+        &mut self,
+        type_: &Type,
+        items: &Vec<Expr>,
+    ) -> CodegenResult<BasicValueEnum<'ctx>> {
+        let type_ = self.get_llvm_type(&Type::Array(ArrayType {
+            type_: Box::new(type_.clone()),
+            size: items.len() as u32,
+        }))?;
+
+        let ptr = self.create_entry_block_alloca("tmp.arr", type_);
+
+        let zero = self.context.i64_type().const_zero();
+
+        for (i, item) in items.iter().enumerate() {
+            let compiled_expr = self.compile_expr(item)?;
+
+            let index = self.context.i64_type().const_int(i as u64, false);
+
+            let item_ptr = unsafe {
+                self.builder
+                    .build_in_bounds_gep(ptr, &[zero, index], "arr.gep")
+            };
+
+            self.builder.build_store(item_ptr, compiled_expr);
+        }
+
+        Ok(ptr.into())
+    }
+
+    fn compile_array_access(
+        &mut self,
+        access: &ArrayAccess,
+    ) -> CodegenResult<BasicValueEnum<'ctx>> {
+        let zero = self.context.i32_type().const_zero();
+
+        let index = self.compile_expr(&*access.index)?.into_int_value();
+
+        let variable_ptr = self.variables.get(&access.variable_id).ok_or_else(|| {
+            CodegenError::UndeclaredVariableOrOutOfScope(access.variable_id.clone())
+        })?;
+
+        let variable_ptr = self
+            .builder
+            .build_load(*variable_ptr, "deref")
+            .into_pointer_value();
+
+        let item_ptr = unsafe {
+            self.builder
+                .build_in_bounds_gep(variable_ptr, &[zero, index], "indx.expr")
+        };
+
+        Ok(self.builder.build_load(item_ptr, "tmp.deref.arrayindex"))
     }
 }
