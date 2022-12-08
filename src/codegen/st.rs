@@ -41,9 +41,7 @@ impl<'ctx> SymbolTable<'ctx> {
             .iter()
             .rev()
             .find(|table| table.contains_key(var))
-            .ok_or_else(|| CodegenError::UndeclaredVariableOrOutOfScope(
-                var.to_string(),
-            ))?;
+            .ok_or_else(|| CodegenError::UndeclaredVariableOrOutOfScope(var.to_string()))?;
 
         Ok(*table.get(var).unwrap())
     }
