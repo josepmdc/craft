@@ -45,6 +45,8 @@ impl Scanner {
             ')' => self.add_token(TokenKind::RightParen),
             '{' => self.add_token(TokenKind::LeftBrace),
             '}' => self.add_token(TokenKind::RightBrace),
+            '[' => self.add_token(TokenKind::LeftBracket),
+            ']' => self.add_token(TokenKind::RightBracket),
             ',' => self.add_token(TokenKind::Comma),
             '+' => self.add_token(TokenKind::Plus),
             '-' => self.add_token(TokenKind::Minus),

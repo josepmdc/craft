@@ -6,7 +6,7 @@ use crate::{
 use super::{
     stmt::Stmt,
     structs::{FieldAccess, StructExpr},
-    LiteralType, ParseResult, Parser,
+    LiteralType, ParseResult, Parser, Type,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -47,6 +47,14 @@ pub enum Expr {
     Block(Block),
     Struct(StructExpr),
     FieldAccess(FieldAccess),
+    Array(Type, Vec<Expr>),
+    ArrayAccess(ArrayAccess),
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ArrayAccess {
+    pub variable_id: String,
+    pub index: Box<Expr>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -201,9 +209,10 @@ impl Parser {
                 Expr::Literal(LiteralType::I64(literal))
             }
             TokenKind::LeftParen => self.parse_grouping()?,
+            TokenKind::LeftBrace => self.parse_block_expr()?,
+            TokenKind::LeftBracket => self.parse_array_declaration()?,
             TokenKind::Identifier(_) => self.parse_id_expr()?,
             TokenKind::If => self.parse_if()?,
-            TokenKind::LeftBrace => self.parse_block_expr()?,
             _ => {
                 let token = self.current();
                 return Err(error::report(
@@ -224,6 +233,7 @@ impl Parser {
             TokenKind::Equal => self.parse_var_assignment(),
             TokenKind::LeftBrace => self.parse_struct_expr(),
             TokenKind::Dot => self.parse_field_access(),
+            TokenKind::LeftBracket => self.parse_array_access(),
             _ => {
                 let name = self.current().lexeme.clone();
                 self.advance()?;
@@ -307,10 +317,7 @@ impl Parser {
                     self.advance()?;
                     break;
                 }
-                _ => {
-                    debug!("Expected comma or RightParen, found: {:#?}", self.current());
-                    return Err(ParseError::MissingCommaOrRightParen());
-                }
+                _ => return Err(ParseError::MissingCommaOrRightParen()),
             };
         }
 
@@ -336,5 +343,51 @@ impl Parser {
             }
             _ => Err(ParseError::ExpectedString()),
         }
+    }
+
+    fn parse_array_declaration(&mut self) -> ParseResult<Expr> {
+        trace!("Parsing array decalration");
+        self.consume(TokenKind::LeftBracket, ParseError::ExpectedLeftBracket())?;
+
+        let mut items = vec![];
+
+        loop {
+            items.push(self.parse_expr()?);
+
+            match self.current().kind {
+                TokenKind::Comma => self.advance()?,
+                TokenKind::RightBracket => {
+                    self.advance()?;
+                    break;
+                }
+                _ => return Err(ParseError::ExpectedRightBracket()),
+            };
+        }
+
+        let id = self.consume_identifier()?;
+        let type_ = self.parse_type(id);
+
+        let arr = Expr::Array(type_, items);
+
+        trace!("Parsed arr decalration: {:#?}", arr);
+
+        Ok(arr)
+    }
+
+    fn parse_array_access(&mut self) -> ParseResult<Expr> {
+        trace!("Parsing array access");
+        let variable_id = self.consume_identifier()?;
+
+        self.consume(TokenKind::LeftBracket, ParseError::ExpectedLeftBracket())?;
+
+        let index = Box::new(self.parse_expr()?);
+
+        self.consume(TokenKind::RightBracket, ParseError::ExpectedRightBracket())?;
+
+        let access = Expr::ArrayAccess(ArrayAccess { variable_id, index });
+
+        trace!("Parsed array access: {:#?}", access);
+
+        Ok(access)
     }
 }

@@ -24,6 +24,13 @@ pub enum Type {
     String,
     Struct(String),
     Void,
+    Array(ArrayType),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ArrayType {
+    pub type_: Box<Type>,
+    pub size: u32,
 }
 
 impl Default for Type {
@@ -78,6 +85,24 @@ impl Parser {
         }
     }
 
+    fn parse_array_type(&mut self) -> ParseResult<Type> {
+        self.consume(TokenKind::LeftBracket, ParseError::ExpectedLeftBracket())?;
+
+        let id = self.consume_identifier()?;
+        self.consume(TokenKind::Semicolon, ParseError::MissingSemicolon())?;
+
+        let size = self.consume_i64()? as u32; // TODO should check for u32 instead of casting here but only i64 is supported ATM
+
+        let array = ArrayType {
+            type_: Box::new(self.parse_type(id)),
+            size,
+        };
+
+        self.consume(TokenKind::RightBracket, ParseError::ExpectedRightBracket())?;
+
+        Ok(Type::Array(array))
+    }
+
     fn match_any<const L: usize>(&self, types: [TokenKind; L]) -> bool {
         types.iter().any(|t| self.current_is(t.clone()))
     }
@@ -104,6 +129,16 @@ impl Parser {
                 Ok(id)
             }
             _ => Err(ParseError::ExpectedIdentifier()),
+        }
+    }
+
+    fn consume_i64(&mut self) -> ParseResult<i64> {
+        match self.current().kind {
+            TokenKind::I64(int) => {
+                self.advance()?;
+                Ok(int)
+            }
+            _ => Err(ParseError::ExpectedInteger()),
         }
     }
 

@@ -40,6 +40,12 @@ pub enum ParseError {
     RedefinedField(String, String),
     #[error("Expected a string")]
     ExpectedString(),
+    #[error("Expected left bracket")]
+    ExpectedLeftBracket(),
+    #[error("Expected right bracket")]
+    ExpectedRightBracket(),
+    #[error("Expected an integer")]
+    ExpectedInteger(),
 }
 
 pub fn report(token: &Token, error: ParseError) -> ParseError {
