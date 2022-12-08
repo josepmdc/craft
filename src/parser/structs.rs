@@ -85,7 +85,10 @@ impl Parser {
 
         let type_ = match self.current().kind.clone() {
             TokenKind::LeftBracket => self.parse_array_type()?,
-            TokenKind::Identifier(id) => self.parse_type(id),
+            TokenKind::Identifier(id) => {
+                self.consume_identifier()?;
+                self.parse_type(id)
+            }
             _ => return Err(ParseError::UnexpectedToken(self.current().lexeme.clone())),
         };
 
