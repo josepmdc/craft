@@ -429,8 +429,8 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
     }
 
     fn compile_binary(&mut self, expr: &BinaryExpr) -> CodegenResult<BasicValueEnum<'ctx>> {
-        let lhs = self.compile_expr(&*expr.left)?;
-        let rhs = self.compile_expr(&*expr.right)?;
+        let lhs = self.compile_expr(&expr.left)?;
+        let rhs = self.compile_expr(&expr.right)?;
 
         match expr.operator.kind {
             TokenKind::Plus => match (lhs, rhs) {
@@ -785,7 +785,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
     ) -> CodegenResult<BasicValueEnum<'ctx>> {
         let zero = self.context.i32_type().const_zero();
 
-        let index = self.compile_expr(&*access.index)?.into_int_value();
+        let index = self.compile_expr(&access.index)?.into_int_value();
 
         let variable_ptr = self.variables.get(&access.variable_id)?;
 
