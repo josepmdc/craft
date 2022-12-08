@@ -204,7 +204,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
 
     fn compile_var_assignment(
         &mut self,
-        name: &String,
+        name: &str,
         rhs: &Expr,
     ) -> CodegenResult<BasicValueEnum<'ctx>> {
         let val = self.compile_expr(rhs)?;
