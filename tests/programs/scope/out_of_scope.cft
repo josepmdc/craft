@@ -1,0 +1,7 @@
+fn func() {
+    let a = 5;
+}
+
+fn main() {
+    printf("%d", a);
+}

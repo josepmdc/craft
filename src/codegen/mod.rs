@@ -1,5 +1,6 @@
 mod builtin;
 pub mod error;
+mod st;
 
 use std::collections::HashMap;
 
@@ -22,7 +23,7 @@ use crate::{
     },
 };
 
-use self::error::CodegenError;
+use self::{error::CodegenError, st::SymbolTable};
 
 type CodegenResult<T> = Result<T, CodegenError>;
 
@@ -31,7 +32,7 @@ pub struct Compiler<'a, 'ctx> {
     pub builder: &'a Builder<'ctx>,
     pub module: &'a Module<'ctx>,
 
-    variables: HashMap<String, PointerValue<'ctx>>,
+    variables: SymbolTable<'ctx>,
     structs: HashMap<String, Struct>,
     fn_value_opt: Option<FunctionValue<'ctx>>,
 }
@@ -46,7 +47,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             context,
             builder,
             module,
-            variables: HashMap::new(),
+            variables: SymbolTable::new(),
             structs: HashMap::new(),
             fn_value_opt: None,
         }
@@ -80,6 +81,8 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
     }
 
     pub fn compile_fn(&mut self, function: Function) -> CodegenResult<FunctionValue<'ctx>> {
+        self.variables.new_context();
+
         let proto = &function.prototype;
         let compiled_func = self.compile_prototype(proto)?;
 
@@ -92,8 +95,6 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         self.builder.position_at_end(entry);
 
         self.fn_value_opt = Some(compiled_func);
-
-        self.variables.reserve(proto.params.len());
 
         for (i, arg) in compiled_func.get_param_iter().enumerate() {
             let alloca =
@@ -111,6 +112,8 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         if std::env::args().any(|x| x == "-cc") {
             compiled_func.print_to_stderr();
         }
+
+        self.variables.pop_context();
 
         if compiled_func.verify(true) {
             Ok(compiled_func)
@@ -195,7 +198,6 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         let compiled_expr = self.compile_expr(initializer)?;
         let alloca = self.create_entry_block_alloca(name.as_str(), compiled_expr.get_type());
         self.builder.build_store(alloca, compiled_expr);
-        self.variables.remove(&name);
         self.variables.insert(name, alloca);
         Ok(())
     }
@@ -206,11 +208,10 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         rhs: &Expr,
     ) -> CodegenResult<BasicValueEnum<'ctx>> {
         let val = self.compile_expr(rhs)?;
-        let var = self
-            .variables
-            .get(name)
-            .ok_or_else(|| CodegenError::UndeclaredVariableOrOutOfScope(name.clone()))?;
-        self.builder.build_store(*var, val);
+
+        let var = self.variables.get(name)?;
+
+        self.builder.build_store(var, val);
         Ok(val)
     }
 
@@ -262,14 +263,9 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         &self,
         field_access: &FieldAccess,
     ) -> CodegenResult<BasicValueEnum<'ctx>> {
-        let variable_ptr = self
-            .variables
-            .get(&field_access.variable_id)
-            .ok_or_else(|| {
-                CodegenError::UndeclaredVariableOrOutOfScope(field_access.variable_id.clone())
-            })?;
+        let variable_ptr = self.variables.get(&field_access.variable_id)?;
 
-        let field_ptr = self.get_field_ptr(field_access, variable_ptr)?;
+        let field_ptr = self.get_field_ptr(field_access, &variable_ptr)?;
         Ok(self.builder.build_load(field_ptr, "tmp.deref"))
     }
 
@@ -609,12 +605,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
     }
 
     fn compile_variable(&self, name: &str) -> CodegenResult<BasicValueEnum<'ctx>> {
-        match self.variables.get(name) {
-            Some(var) => Ok(self.builder.build_load(*var, name)),
-            None => Err(CodegenError::UndeclaredVariableOrOutOfScope(
-                name.to_string(),
-            )),
-        }
+        Ok(self.builder.build_load(self.variables.get(name)?, name))
     }
 
     fn compile_conditional(
@@ -796,13 +787,11 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
 
         let index = self.compile_expr(&*access.index)?.into_int_value();
 
-        let variable_ptr = self.variables.get(&access.variable_id).ok_or_else(|| {
-            CodegenError::UndeclaredVariableOrOutOfScope(access.variable_id.clone())
-        })?;
+        let variable_ptr = self.variables.get(&access.variable_id)?;
 
         let variable_ptr = self
             .builder
-            .build_load(*variable_ptr, "deref")
+            .build_load(variable_ptr, "deref")
             .into_pointer_value();
 
         let item_ptr = unsafe {

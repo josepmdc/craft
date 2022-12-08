@@ -3,7 +3,7 @@ mod error;
 mod lexer;
 mod parser;
 
-use std::{env, fs};
+use std::{env, fs, process};
 
 use error::CompilerError;
 use inkwell::{context::Context, module::Module, OptimizationLevel};
@@ -29,7 +29,8 @@ fn main() {
 fn run_file(path: &String) {
     let source = fs::read_to_string(path).expect("Could not read file");
     if let Err(err) = run(source) {
-        println!("{}", err);
+        eprintln!("{}", err);
+        process::exit(1);
     }
 }
 
