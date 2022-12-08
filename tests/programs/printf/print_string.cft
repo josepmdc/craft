@@ -4,5 +4,5 @@ fn print_str(str: string) i64 {
 }
 
 fn main() {
-    print_str("str");
+    print_str("xd");
 }
