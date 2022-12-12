@@ -1,6 +1,5 @@
-fn print_str(str: string) i64 {
+fn print_str(str: string) {
     printf("asdf -> %s\n", str);
-    0
 }
 
 fn main() {
