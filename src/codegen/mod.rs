@@ -391,18 +391,19 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                     .map(|&val| val.into())
                     .collect();
 
-                match self
-                    .builder
-                    .build_call(fun, argsv.as_slice(), "tmp")
-                    .try_as_basic_value()
-                    .left()
-                {
+                let ret = self.builder.build_call(fun, argsv.as_slice(), "tmp");
+
+                match ret.try_as_basic_value().left() {
                     Some(value) => Ok(value),
-                    None => Err(CodegenError::InvalidCall(fn_call.fn_name.to_owned())),
+                    None => Ok(self.gen_empty()),
                 }
             }
             None => Err(CodegenError::UnkownFunction(fn_call.fn_name.to_owned())),
         }
+    }
+
+    fn gen_empty(&mut self) -> BasicValueEnum<'ctx> {
+        self.context.const_struct(&[], false).into()
     }
 
     fn compile_literal(&self, literal: &LiteralType) -> CodegenResult<BasicValueEnum<'ctx>> {
