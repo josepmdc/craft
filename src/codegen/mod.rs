@@ -789,7 +789,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         let index_expr = self.compile_expr(&access.index)?;
 
         if !index_expr.get_type().as_basic_type_enum().is_int_type() {
-            todo!("return err");
+            return Err(CodegenError::IndexNotInteger());
         }
 
         let index = index_expr.into_int_value();
@@ -804,8 +804,10 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             .into_array_type()
             .len();
 
-        if index.get_sign_extended_constant().unwrap() as u32 >= arr_len {
-            todo!("return err");
+        let index_value = index.get_sign_extended_constant().unwrap() as u32;
+
+        if index_value >= arr_len {
+            return Err(CodegenError::IndexOutOfBounds(arr_len, index_value));
         }
 
         let variable_ptr = self
