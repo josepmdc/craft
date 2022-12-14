@@ -786,9 +786,29 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
     ) -> CodegenResult<BasicValueEnum<'ctx>> {
         let zero = self.context.i32_type().const_zero();
 
-        let index = self.compile_expr(&access.index)?.into_int_value();
+        let index_expr = self.compile_expr(&access.index)?;
+
+        if !index_expr.get_type().as_basic_type_enum().is_int_type() {
+            return Err(CodegenError::IndexNotInteger());
+        }
+
+        let index = index_expr.into_int_value();
 
         let variable_ptr = self.variables.get(&access.variable_id)?;
+
+        let arr_len = variable_ptr
+            .get_type()
+            .get_element_type()
+            .into_pointer_type()
+            .get_element_type()
+            .into_array_type()
+            .len();
+
+        let index_value = index.get_sign_extended_constant().unwrap() as u32;
+
+        if index_value >= arr_len {
+            return Err(CodegenError::IndexOutOfBounds(arr_len, index_value));
+        }
 
         let variable_ptr = self
             .builder

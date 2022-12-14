@@ -34,4 +34,8 @@ pub enum CodegenError {
     ExpectedStruct(String),
     #[error("All fields of struct {0} must be initialized")]
     AllFieldsMustBeInitialized(String),
+    #[error("Index out of bounds: len is {0} but index is {1}")]
+    IndexOutOfBounds(u32, u32),
+    #[error("Index must be an integer")]
+    IndexNotInteger(),
 }
