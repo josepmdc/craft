@@ -50,6 +50,7 @@ pub enum TokenKind {
     Struct,
     Dot,
     Printf,
+    Return,
 }
 
 #[derive(Debug, Clone, PartialEq)]

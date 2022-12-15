@@ -5,6 +5,7 @@ mod st;
 use std::collections::HashMap;
 
 use inkwell::{
+    basic_block::BasicBlock,
     builder::Builder,
     context::Context,
     module::Module,
@@ -35,6 +36,8 @@ pub struct Compiler<'a, 'ctx> {
     variables: SymbolTable<'ctx>,
     structs: HashMap<String, Struct>,
     fn_value_opt: Option<FunctionValue<'ctx>>,
+    curr_fn_ret_val: Option<PointerValue<'ctx>>,
+    curr_fn_ret_bb: Option<BasicBlock<'ctx>>,
 }
 
 impl<'a, 'ctx> Compiler<'a, 'ctx> {
@@ -50,6 +53,8 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             variables: SymbolTable::new(),
             structs: HashMap::new(),
             fn_value_opt: None,
+            curr_fn_ret_val: None,
+            curr_fn_ret_bb: None,
         }
     }
 
@@ -92,9 +97,20 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
 
         let entry = self.context.append_basic_block(compiled_func, "entry");
 
+        // create return basic block
+        self.curr_fn_ret_bb = Some(self.context.append_basic_block(compiled_func, "ret"));
+
         self.builder.position_at_end(entry);
 
         self.fn_value_opt = Some(compiled_func);
+
+        match function.prototype.return_type {
+            Type::Void => self.curr_fn_ret_val = None,
+            _ => {
+                let ret_type = self.get_llvm_type(&function.prototype.return_type)?;
+                self.curr_fn_ret_val = Some(self.create_entry_block_alloca("ret.val", ret_type));
+            }
+        }
 
         for (i, arg) in compiled_func.get_param_iter().enumerate() {
             let alloca =
@@ -104,8 +120,19 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                 .insert(proto.params[i].identifier.clone(), alloca);
         }
 
-        match self.compile_block(&function.body, function.return_expr.clone())? {
-            Some(ret) => self.builder.build_return(Some(&ret)),
+        self.compile_block(&function.body, function.return_expr.clone())?;
+
+        self.builder
+            .build_unconditional_branch(self.curr_fn_ret_bb.unwrap());
+
+        // create return statement
+        self.builder.position_at_end(self.curr_fn_ret_bb.unwrap());
+
+        match self.curr_fn_ret_val {
+            Some(ptr) => {
+                let ret = self.builder.build_load(ptr, "ret.val");
+                self.builder.build_return(Some(&ret))
+            }
             None => self.builder.build_return(None),
         };
 
@@ -140,7 +167,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         Ok(struct_type)
     }
 
-    fn compile_prototype(&self, proto: &Prototype) -> CodegenResult<FunctionValue<'ctx>> {
+    fn compile_prototype(&mut self, proto: &Prototype) -> CodegenResult<FunctionValue<'ctx>> {
         let param_types = proto
             .params
             .iter()
@@ -189,7 +216,10 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             Stmt::Printf { fmt_string, args } => {
                 self.compile_printf(fmt_string.clone(), args.clone())?;
             }
-            _ => todo!(),
+            Stmt::Return(ret) => {
+                self.compile_return(ret)?;
+            }
+            _ => unreachable!(),
         };
         Ok(())
     }
@@ -356,17 +386,18 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         self.compile_expr(&return_expr)
     }
 
-    fn compile_block(
-        &mut self,
-        body: &[Stmt],
-        return_expr: Option<Expr>,
-    ) -> CodegenResult<Option<BasicValueEnum<'ctx>>> {
+    fn compile_block(&mut self, body: &[Stmt], return_expr: Option<Expr>) -> CodegenResult<()> {
         self.compile_body(body)?;
-        let compiled_return = match return_expr {
-            Some(expr) => Some(self.compile_expr(&expr)?),
-            None => None,
-        };
-        Ok(compiled_return)
+
+        if let Some(expr) = return_expr {
+            let ret = self.compile_expr(&expr)?;
+
+            if let Some(ret_ptr) = self.curr_fn_ret_val {
+                self.builder.build_store(ret_ptr, ret);
+            }
+        }
+
+        Ok(())
     }
 
     fn compile_body(&mut self, body: &[Stmt]) -> CodegenResult<()> {
@@ -695,7 +726,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         Ok(())
     }
 
-    fn get_llvm_type(&self, type_: &Type) -> CodegenResult<BasicTypeEnum<'ctx>> {
+    fn get_llvm_type(&mut self, type_: &Type) -> CodegenResult<BasicTypeEnum<'ctx>> {
         match type_ {
             Type::F64 => Ok(self.context.f64_type().into()),
             Type::I64 => Ok(self.context.i64_type().into()),
@@ -821,5 +852,15 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         };
 
         Ok(self.builder.build_load(item_ptr, "tmp.deref.arrayindex"))
+    }
+
+    fn compile_return(&mut self, expr: &Expr) -> CodegenResult<()> {
+        let expr = self.compile_expr(expr)?;
+        if let Some(ret_ptr) = self.curr_fn_ret_val {
+            self.builder.build_store(ret_ptr, expr);
+            self.builder
+                .build_unconditional_branch(self.curr_fn_ret_bb.unwrap());
+        }
+        Ok(())
     }
 }

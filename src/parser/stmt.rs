@@ -15,6 +15,7 @@ pub enum Stmt {
     Expr(Expr),
     While { cond: Expr, body: Block },
     Printf { fmt_string: String, args: Vec<Expr> },
+    Return(Expr),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -38,6 +39,7 @@ impl Parser {
             TokenKind::VarDeclaration => self.parse_var_declaration()?,
             TokenKind::While => self.parse_while()?,
             TokenKind::Printf => self.parse_printf()?,
+            TokenKind::Return => self.parse_return()?,
             _ => self.parse_expr_stmt()?,
         };
         Ok(expr)
@@ -270,5 +272,13 @@ impl Parser {
         trace!("Parsed printf: {:#?}", printf);
 
         Ok(printf)
+    }
+
+    fn parse_return(&mut self) -> ParseResult<Stmt> {
+        trace!("Parsing return stmt");
+        self.consume(TokenKind::Return, ParseError::ExpectedReturn())?;
+        let ret = Stmt::Return(self.parse_expr()?);
+        trace!("Parsed return: {:#?}", ret);
+        Ok(ret)
     }
 }

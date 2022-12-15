@@ -46,6 +46,8 @@ pub enum ParseError {
     ExpectedRightBracket(),
     #[error("Expected an integer")]
     ExpectedInteger(),
+    #[error("Expected return")]
+    ExpectedReturn(),
 }
 
 pub fn report(token: &Token, error: ParseError) -> ParseError {
