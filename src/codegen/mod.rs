@@ -157,8 +157,8 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
 
         let field_types = struct_
             .fields
-            .iter()
-            .map(|(_, metadata)| self.get_llvm_type(&metadata.type_))
+            .values()
+            .map(|metadata| self.get_llvm_type(&metadata.type_))
             .collect::<CodegenResult<Vec<BasicTypeEnum>>>()?;
 
         struct_type.set_body(&field_types, false);
