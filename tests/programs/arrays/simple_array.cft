@@ -8,5 +8,5 @@ fn asdf(xd: [i64; 3]) [i64; 3] {
 
 fn main() {
     let a = [1, 2, 3] i64;
-    printf("[%d, %d, %d]", a[0], a[1], a[2]);
+    printf("[%d, %d, %d]", a[0], a[1], a[2])
 }
