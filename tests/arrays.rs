@@ -17,5 +17,5 @@ fn array_out_of_bounds() {
         .arg("tests/programs/arrays/out_of_bounds.cft")
         .assert()
         .failure()
-        .stderr(predicate::str::contains("out of bounds"));
+        .stderr(predicate::str::contains("Index out of bounds"));
 }
