@@ -481,7 +481,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                 }
                 (BasicValueEnum::FloatValue(lhs), BasicValueEnum::FloatValue(rhs)) => {
                     Ok(BasicValueEnum::IntValue(self.builder.build_float_compare(
-                        FloatPredicate::ULT,
+                        FloatPredicate::OLT,
                         lhs,
                         rhs,
                         "cmplttmp",
@@ -500,7 +500,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                 }
                 (BasicValueEnum::FloatValue(lhs), BasicValueEnum::FloatValue(rhs)) => {
                     Ok(BasicValueEnum::IntValue(self.builder.build_float_compare(
-                        FloatPredicate::UGT,
+                        FloatPredicate::OGT,
                         lhs,
                         rhs,
                         "cmpgttmp",
@@ -601,8 +601,24 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         }
     }
 
-    fn compile_unary(&self, _expr: &UnaryExpr) -> CodegenResult<BasicValueEnum<'ctx>> {
-        todo!()
+    fn compile_unary(&mut self, expr: &UnaryExpr) -> CodegenResult<BasicValueEnum<'ctx>> {
+        let compiled = self.compile_expr(&expr.right)?;
+        let res = match expr.operator.kind {
+            TokenKind::Minus => {
+                if compiled.is_int_value() {
+                    self.builder
+                        .build_int_nsw_neg(compiled.into_int_value(), "tmp.neg")
+                        .as_basic_value_enum()
+                } else {
+                    self.builder
+                        .build_float_neg(compiled.into_float_value(), "tmp.neg")
+                        .as_basic_value_enum()
+                }
+            }
+            _ => unimplemented!(),
+        };
+
+        Ok(res)
     }
 
     fn compile_variable(&self, name: &str) -> CodegenResult<BasicValueEnum<'ctx>> {
