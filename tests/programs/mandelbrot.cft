@@ -1,0 +1,43 @@
+fn mandelbrot(a: f64, b: f64) f64 {
+    let za = 0.0;
+    let zb = 0.0;
+
+    let i = 0;
+
+    while i < 50 {
+        za = (za*za - zb*zb) + a;
+        zb = (za*zb + za*zb) + b;
+        i = i+1;
+    }
+
+    za*za + zb*zb
+}
+
+fn main() {
+    let xstart = -2.0;
+    let xend = 0.5;
+    let ystart = 1.0;
+    let yend = -1.0;
+
+    let xstep = 0.0315;
+    let ystep = -0.05;
+
+    let x = xstart;
+    let y = ystart;
+
+    while y > yend {
+        x = xstart;
+        while x < xend {
+            if mandelbrot(x, y) < 4.0 {
+                printf("x");
+                0
+            } else {
+                printf(" ");
+                0
+            }
+            x = x + xstep; 
+        }
+        printf("\n");
+        y = y + ystep; 
+    };
+}

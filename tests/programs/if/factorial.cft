@@ -1,0 +1,11 @@
+fn factorial(n: i64) i64 {
+    if n == 1 {
+        n
+    } else {
+        n * factorial(n-1)
+    }
+}
+
+fn main() {
+    printf("%d", factorial(10));
+}
