@@ -160,7 +160,11 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                 .get_llvm_type(&arr.type_)?
                 .array_type(arr.size)
                 .fn_type(&param_types, false),
-            invalid_type => return Err(CodegenError::InvalidType(invalid_type.clone())),
+            Type::Struct(id) => self
+                .module
+                .get_struct_type(id)
+                .ok_or_else(|| CodegenError::UndefinedStruct(id.clone()))?
+                .fn_type(&param_types, false),
         };
 
         // Create the function
