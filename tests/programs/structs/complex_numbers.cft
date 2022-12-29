@@ -1,0 +1,29 @@
+struct ComplexNumber {
+    real:      f64
+    imaginary: f64
+}
+
+fn add(x: ComplexNumber, y: ComplexNumber) ComplexNumber {
+    ComplexNumber!{
+        real: x.real + y.real,
+        imaginary: x.imaginary + y.imaginary,
+    }
+}
+
+fn multiply(x: ComplexNumber, y: ComplexNumber) ComplexNumber {
+    ComplexNumber!{
+        real: x.real * y.real - x.imaginary * y.imaginary,
+        imaginary: x.real * y.imaginary + x.imaginary * y.real,
+    }
+}
+
+fn main() {
+  let x = ComplexNumber!{ real: 1.0, imaginary: 2.0, };
+  let y = ComplexNumber!{ real: 3.0, imaginary: 4.0, };
+
+  let z = add(x, y);
+  printf("The sum of x and y is %f + %fi\n", z.real, z.imaginary);
+
+  z = multiply(x, y);
+  printf("The product of x and y is %f + %fi\n", z.real, z.imaginary);
+}

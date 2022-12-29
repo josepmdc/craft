@@ -187,7 +187,11 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                 .get_llvm_type(&arr.type_)?
                 .array_type(arr.size)
                 .fn_type(&param_types, false),
-            invalid_type => return Err(CodegenError::InvalidType(invalid_type.clone())),
+            Type::Struct(id) => self
+                .module
+                .get_struct_type(id)
+                .ok_or_else(|| CodegenError::UndefinedStruct(id.clone()))?
+                .fn_type(&param_types, false),
         };
 
         // Create the function
@@ -512,7 +516,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                 }
                 (BasicValueEnum::FloatValue(lhs), BasicValueEnum::FloatValue(rhs)) => {
                     Ok(BasicValueEnum::IntValue(self.builder.build_float_compare(
-                        FloatPredicate::ULT,
+                        FloatPredicate::OLT,
                         lhs,
                         rhs,
                         "cmplttmp",
@@ -531,7 +535,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                 }
                 (BasicValueEnum::FloatValue(lhs), BasicValueEnum::FloatValue(rhs)) => {
                     Ok(BasicValueEnum::IntValue(self.builder.build_float_compare(
-                        FloatPredicate::UGT,
+                        FloatPredicate::OGT,
                         lhs,
                         rhs,
                         "cmpgttmp",
@@ -632,8 +636,24 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         }
     }
 
-    fn compile_unary(&self, _expr: &UnaryExpr) -> CodegenResult<BasicValueEnum<'ctx>> {
-        todo!()
+    fn compile_unary(&mut self, expr: &UnaryExpr) -> CodegenResult<BasicValueEnum<'ctx>> {
+        let compiled = self.compile_expr(&expr.right)?;
+        let res = match expr.operator.kind {
+            TokenKind::Minus => {
+                if compiled.is_int_value() {
+                    self.builder
+                        .build_int_nsw_neg(compiled.into_int_value(), "tmp.neg")
+                        .as_basic_value_enum()
+                } else {
+                    self.builder
+                        .build_float_neg(compiled.into_float_value(), "tmp.neg")
+                        .as_basic_value_enum()
+                }
+            }
+            _ => unimplemented!(),
+        };
+
+        Ok(res)
     }
 
     fn compile_variable(&self, name: &str) -> CodegenResult<BasicValueEnum<'ctx>> {
@@ -835,11 +855,14 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             .into_array_type()
             .len();
 
-        let index_value = index.get_sign_extended_constant().unwrap() as u32;
+        // we don't know the index at compile time
+        if let Some(index) = index.get_sign_extended_constant() {
+            let index = index as u32;
 
-        if index_value >= arr_len {
-            return Err(CodegenError::IndexOutOfBounds(arr_len, index_value));
-        }
+            if index >= arr_len {
+                return Err(CodegenError::IndexOutOfBounds(arr_len, index));
+            };
+        };
 
         let variable_ptr = self
             .builder

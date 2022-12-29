@@ -99,6 +99,7 @@ impl Parser {
         trace!("Parsing struct expr");
         let identifier = self.consume_identifier()?;
 
+        self.consume(TokenKind::Bang, ParseError::ExpectedBang())?;
         self.consume(TokenKind::LeftBrace, ParseError::MissingLeftBrace())?;
 
         let mut fields = HashMap::new();

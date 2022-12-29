@@ -15,15 +15,13 @@ fn extract_field(outer: OuterStruct) i64 {
 }
 
 fn main() {
-    let outer = OuterStruct { 
-        inner: InnerStruct {
-            inner_inner: InnerInnerStruct {
+    let outer = OuterStruct!{ 
+        inner: InnerStruct!{
+            inner_inner: InnerInnerStruct!{
                 field: 42,
             },
         },
     };
 
-    printf("%d",
-        extract_field(outer)
-    );
+    printf("%d", extract_field(outer));
 }

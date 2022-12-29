@@ -48,6 +48,8 @@ pub enum ParseError {
     ExpectedInteger(),
     #[error("Expected return")]
     ExpectedReturn(),
+    #[error("Expected ! after identifier")]
+    ExpectedBang(),
 }
 
 pub fn report(token: &Token, error: ParseError) -> ParseError {
