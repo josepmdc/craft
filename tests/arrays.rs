@@ -8,7 +8,7 @@ fn simple_array() {
         .arg("tests/programs/arrays/simple_array.cft")
         .assert()
         .success()
-        .stdout(predicate::str::contains("[1, 2, 3]"));
+        .stdout(predicate::str::contains("[1, 2, 3]\n[1, 2, 3]"));
 }
 
 #[test]

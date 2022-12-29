@@ -824,11 +824,16 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             .into_array_type()
             .len();
 
-        let index_value = index.get_sign_extended_constant().unwrap() as u32;
+        match index.get_sign_extended_constant() {
+            Some(index) => {
+                let index = index as u32;
 
-        if index_value >= arr_len {
-            return Err(CodegenError::IndexOutOfBounds(arr_len, index_value));
-        }
+                if index >= arr_len {
+                    return Err(CodegenError::IndexOutOfBounds(arr_len, index));
+                };
+            }
+            None => (), // we don't know the index at compile time
+        };
 
         let variable_ptr = self
             .builder
