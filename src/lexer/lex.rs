@@ -120,6 +120,7 @@ impl Scanner {
             "while" => Some(TokenKind::While),
             "printf" => Some(TokenKind::Printf),
             "struct" => Some(TokenKind::Struct),
+            "ret" => Some(TokenKind::Return),
             _ => None,
         }
     }
