@@ -130,8 +130,8 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
 
         let field_types = struct_
             .fields
-            .iter()
-            .map(|(_, metadata)| self.get_llvm_type(&metadata.type_))
+            .values()
+            .map(|metadata| self.get_llvm_type(&metadata.type_))
             .collect::<CodegenResult<Vec<BasicTypeEnum>>>()?;
 
         struct_type.set_body(&field_types, false);
@@ -824,15 +824,13 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             .into_array_type()
             .len();
 
-        match index.get_sign_extended_constant() {
-            Some(index) => {
-                let index = index as u32;
+        // we don't know the index at compile time
+        if let Some(index) = index.get_sign_extended_constant() {
+            let index = index as u32;
 
-                if index >= arr_len {
-                    return Err(CodegenError::IndexOutOfBounds(arr_len, index));
-                };
-            }
-            None => (), // we don't know the index at compile time
+            if index >= arr_len {
+                return Err(CodegenError::IndexOutOfBounds(arr_len, index));
+            };
         };
 
         let variable_ptr = self
