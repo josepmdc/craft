@@ -1,0 +1,8 @@
+fn main() {
+    let a = [1, 2, 3] i64;
+    let i = 0;
+    while i < 3 {
+        printf("%d\n", a[i]);
+        i = i + 1;
+    };
+}

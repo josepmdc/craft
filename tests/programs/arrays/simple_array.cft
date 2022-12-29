@@ -8,5 +8,20 @@ fn asdf(xd: [i64; 3]) [i64; 3] {
 
 fn main() {
     let a = [1, 2, 3] i64;
-    printf("[%d, %d, %d]", a[0], a[1], a[2]);
+    let i = 0;
+
+    printf("[");
+    while i < 3 {
+        if i == 2 {
+            printf("%d", a[i]);
+            0
+        } else {
+            printf("%d, ", a[i]);
+            0
+        }
+        i = i + 1;
+    }
+    printf("]\n");
+
+    printf("[%d, %d, %d]\n", a[0], a[1], a[2]);
 }

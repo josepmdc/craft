@@ -231,7 +231,7 @@ impl Parser {
         match self.peek().kind {
             TokenKind::LeftParen => Ok(Expr::FnCall(self.parse_fn_call()?)),
             TokenKind::Equal => self.parse_var_assignment(),
-            TokenKind::LeftBrace => self.parse_struct_expr(),
+            TokenKind::Bang => self.parse_struct_expr(),
             TokenKind::Dot => self.parse_field_access(),
             TokenKind::LeftBracket => self.parse_array_access(),
             _ => {
