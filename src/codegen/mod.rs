@@ -122,8 +122,14 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
 
         self.compile_block(&function.body, function.return_expr.clone())?;
 
-        self.builder
-            .build_unconditional_branch(self.curr_fn_ret_bb.unwrap());
+        // if the last statement is a return the just has already been generated so we do nothing
+        match function.body.last() {
+            Some(Stmt::Return(_)) => {}
+            _ => {
+                self.builder
+                    .build_unconditional_branch(self.curr_fn_ret_bb.unwrap());
+            }
+        }
 
         // create return statement
         self.builder.position_at_end(self.curr_fn_ret_bb.unwrap());
@@ -367,13 +373,10 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                 self.compile_conditional(*cond.clone(), *then.clone(), *else_.clone())
             }
             Expr::VariableAssignment { id, rhs } => self.compile_var_assignment(id, rhs),
-            Expr::Block(block) => self.compile_expr_block(
-                &block.body,
-                *block
-                    .return_expr
-                    .clone()
-                    .ok_or(CodegenError::ExpectedReturnExpr())?,
-            ),
+            Expr::Block(block) => match block.return_expr.clone() {
+                Some(expr) => self.compile_expr_block(&block.body, *expr),
+                None => Ok(self.gen_empty()),
+            },
             Expr::Struct(struct_) => self.compile_struct_expr(struct_),
             Expr::FieldAccess(field_access) => self.compile_field_access(field_access),
             Expr::Array(type_, items) => self.compile_array(type_, items),

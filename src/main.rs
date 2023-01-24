@@ -68,7 +68,7 @@ fn run(source: String) -> Result<(), CompilerError> {
     }
 
     let context = Context::create();
-    let module = context.create_module("repl");
+    let module = context.create_module("main");
     let builder = context.create_builder();
 
     let mut compiler = Compiler::new(&context, &builder, &module);
