@@ -1,0 +1,11 @@
+fn asdf(n: i64) i64 {
+    ret n;
+}
+
+fn xd(n: i64) {
+
+}
+
+fn main() {
+    printf("%d\n", asdf(20));
+}

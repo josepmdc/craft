@@ -16,8 +16,6 @@ pub enum CodegenError {
     UnkownFunction(String),
     #[error("{0} must be declared inside a function")]
     OutsideOfFuncion(String),
-    #[error("A return expression was expected")]
-    ExpectedReturnExpr(),
     #[error("Operands in binary operation must be of the same type")]
     DifferentTypesBinOp(),
     #[error("Return types in branch expression must be of the same type")]

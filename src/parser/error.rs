@@ -46,6 +46,8 @@ pub enum ParseError {
     ExpectedRightBracket(),
     #[error("Expected an integer")]
     ExpectedInteger(),
+    #[error("Expected return")]
+    ExpectedReturn(),
     #[error("Expected ! after identifier")]
     ExpectedBang(),
 }
