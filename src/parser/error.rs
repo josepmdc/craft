@@ -14,8 +14,6 @@ pub enum ParseError {
     MissingSemicolon(),
     #[error("Expected ',' or ')' after expression")]
     MissingCommaOrRightParen(),
-    #[error("Expected else")]
-    MissingElse(),
     #[error("Expected '=' after identifier")]
     MissingEquals(),
     #[error("Expected colon after identifier {0}")]
