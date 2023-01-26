@@ -85,14 +85,14 @@ impl Scanner {
                     self.advance();
                     self.add_token(TokenKind::And)
                 }
-                c => error::report(self.line, self.col, format!("Unexpected character {}", c)),
+                c => error::report(self.line, self.col, format!("Unexpected character {c}")),
             },
             '|' => match self.current() {
                 '|' => {
                     self.advance();
                     self.add_token(TokenKind::Or)
                 }
-                c => error::report(self.line, self.col, format!("Unexpected character {}", c)),
+                c => error::report(self.line, self.col, format!("Unexpected character {c}")),
             },
             '"' => self.add_string(),
             ' ' | '\r' | '\t' => (),
@@ -103,7 +103,7 @@ impl Scanner {
                 } else if c.is_alphabetic() {
                     self.add_identifier();
                 } else {
-                    error::report(self.line, self.col, format!("Unexpected character {}", c))
+                    error::report(self.line, self.col, format!("Unexpected character {c}"))
                 }
             }
         };

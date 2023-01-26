@@ -290,7 +290,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
 
             let field_ptr = self
                 .builder
-                .build_struct_gep(struct_alloca, index, &format!("tmp.{}", id))
+                .build_struct_gep(struct_alloca, index, &format!("tmp.{id}"))
                 .map_err(|_| CodegenError::BuildStructGepFailed())?;
             let value = self.compile_expr(rhs)?;
             self.builder.build_store(field_ptr, value);
