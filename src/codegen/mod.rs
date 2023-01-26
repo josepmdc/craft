@@ -122,7 +122,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
 
         self.compile_block(&function.body, function.return_expr.clone())?;
 
-        // if the last statement is a return the just has already been generated so we do nothing
+        // if the last statement is a return the return has already been generated so we do nothing
         match function.body.last() {
             Some(Stmt::Return(_)) => {}
             _ => {
@@ -750,7 +750,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
 
         self.builder.position_at_end(while_block);
 
-        self.compile_block(&body.body, body.return_expr.clone().map(|x| *x))?;
+        self.compile_block(&body.body, None)?;
 
         self.builder
             .build_unconditional_branch(while_condition_block);

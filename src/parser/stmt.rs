@@ -187,35 +187,34 @@ impl Parser {
         while !self.current_is(TokenKind::RightBrace) {
             let stmt = self.parse_stmt()?;
 
-            match &stmt {
-                Stmt::While { .. } | Stmt::Expr(Expr::If { .. }) => body.push(stmt),
-                _ => {
-                    match self.current().kind {
-                        TokenKind::Semicolon => {
-                            self.advance()?; // skip ;
-                            body.push(stmt)
-                        }
-                        TokenKind::RightBrace => {
-                            // if the last line of the block is an expression, it'll be the return
-                            let expr = match stmt {
-                                Stmt::Expr(expr) => expr,
-                                _ => return Err(ParseError::MissingSemicolon()),
-                            };
-
-                            let block = Block {
-                                body,
-                                return_expr: Some(Box::new(expr)),
-                            };
-
-                            trace!("Parsed block: {:#?}", block);
-
-                            self.advance()?; // Skip '}'
-
-                            return Ok(block);
-                        }
-                        _ => return Err(ParseError::MissingSemicolon()),
-                    }
+            match self.current().kind {
+                TokenKind::Semicolon => {
+                    self.advance()?; // skip ;
+                    body.push(stmt)
                 }
+                TokenKind::RightBrace => {
+                    // if the last line of the block is an expression, it'll be the return
+                    let expr = match stmt {
+                        Stmt::Expr(expr) => expr,
+                        _ => return Err(ParseError::MissingSemicolon()),
+                    };
+
+                    let block = Block {
+                        body,
+                        return_expr: Some(Box::new(expr)),
+                    };
+
+                    trace!("Parsed block: {:#?}", block);
+
+                    self.advance()?; // Skip '}'
+
+                    return Ok(block);
+                }
+                _ => match &stmt {
+                    // if and while statments don't need semicolons at the end
+                    Stmt::While { .. } | Stmt::Expr(Expr::If { .. }) => body.push(stmt),
+                    _ => return Err(ParseError::MissingSemicolon()),
+                },
             };
 
             if self.is_at_end() {
