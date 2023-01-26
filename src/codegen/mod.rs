@@ -122,7 +122,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
 
         self.compile_block(&function.body, function.return_expr.clone())?;
 
-        // if the last statement is a return the just has already been generated so we do nothing
+        // if the last statement is a return the return has already been generated so we do nothing
         match function.body.last() {
             Some(Stmt::Return(_)) => {}
             _ => {
@@ -290,7 +290,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
 
             let field_ptr = self
                 .builder
-                .build_struct_gep(struct_alloca, index, &format!("tmp.{}", id))
+                .build_struct_gep(struct_alloca, index, &format!("tmp.{id}"))
                 .map_err(|_| CodegenError::BuildStructGepFailed())?;
             let value = self.compile_expr(rhs)?;
             self.builder.build_store(field_ptr, value);
@@ -370,13 +370,12 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             Expr::Variable(var) => self.compile_variable(var.as_str()),
             Expr::FnCall(fn_call) => self.compile_fn_call(fn_call.clone()),
             Expr::If { cond, then, else_ } => {
-                self.compile_conditional(*cond.clone(), *then.clone(), *else_.clone())
+                self.compile_conditional(*cond.clone(), *then.clone(), else_.clone().map(|x| *x))
             }
             Expr::VariableAssignment { id, rhs } => self.compile_var_assignment(id, rhs),
-            Expr::Block(block) => match block.return_expr.clone() {
-                Some(expr) => self.compile_expr_block(&block.body, *expr),
-                None => Ok(self.gen_empty()),
-            },
+            Expr::Block(block) => {
+                self.compile_expr_block(&block.body, block.return_expr.clone().map(|x| *x))
+            }
             Expr::Struct(struct_) => self.compile_struct_expr(struct_),
             Expr::FieldAccess(field_access) => self.compile_field_access(field_access),
             Expr::Array(type_, items) => self.compile_array(type_, items),
@@ -387,10 +386,13 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
     fn compile_expr_block(
         &mut self,
         body: &[Stmt],
-        return_expr: Expr,
+        return_expr: Option<Expr>,
     ) -> CodegenResult<BasicValueEnum<'ctx>> {
         self.compile_body(body)?;
-        self.compile_expr(&return_expr)
+        match return_expr {
+            Some(expr) => self.compile_expr(&expr),
+            None => Ok(self.gen_empty()),
+        }
     }
 
     fn compile_block(&mut self, body: &[Stmt], return_expr: Option<Expr>) -> CodegenResult<()> {
@@ -667,52 +669,61 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         &mut self,
         cond: Expr,
         then: Expr,
-        else_: Expr,
+        else_: Option<Expr>,
     ) -> CodegenResult<BasicValueEnum<'ctx>> {
-        let cond = self.compile_expr(&cond)?;
-
-        let cond = self.builder.build_int_compare(
-            IntPredicate::NE,
-            cond.into_int_value(),
-            self.context.custom_width_int_type(1).const_zero(),
-            "ifcond",
-        );
+        let cond = self.compile_expr(&cond)?.into_int_value();
 
         let parent = self.fn_value("Conditional".to_string())?;
+
         let then_bb = self.context.append_basic_block(parent, "then");
-        let else_bb = self.context.append_basic_block(parent, "else");
-        let cont_bb = self.context.append_basic_block(parent, "ifcont");
+        if else_.is_some() {
+            let else_bb = self.context.append_basic_block(parent, "else");
+            let cont_bb = self.context.append_basic_block(parent, "ifcont");
 
-        self.builder
-            .build_conditional_branch(cond, then_bb, else_bb);
+            self.builder
+                .build_conditional_branch(cond, then_bb, else_bb);
 
-        self.builder.position_at_end(then_bb);
-        let then_val = self.compile_expr(&then)?;
-        self.builder.build_unconditional_branch(cont_bb);
+            // build then block
+            self.builder.position_at_end(then_bb);
+            let then_val = self.compile_expr(&then)?;
+            self.builder.build_unconditional_branch(cont_bb);
 
-        let then_bb = self.builder.get_insert_block().unwrap();
+            // build else block
+            self.builder.position_at_end(else_bb);
+            let else_val = self.compile_expr(&else_.unwrap())?;
+            self.builder.build_unconditional_branch(cont_bb);
 
-        self.builder.position_at_end(else_bb);
-        let else_val = self.compile_expr(&else_)?;
-        self.builder.build_unconditional_branch(cont_bb);
+            self.builder.position_at_end(cont_bb);
 
-        let else_bb = self.builder.get_insert_block().unwrap();
+            let phi = match (then_val, else_val) {
+                (BasicValueEnum::IntValue(_), BasicValueEnum::IntValue(_)) => {
+                    self.builder.build_phi(self.context.i64_type(), "iftmp")
+                }
+                (BasicValueEnum::FloatValue(_), BasicValueEnum::FloatValue(_)) => {
+                    self.builder.build_phi(self.context.f64_type(), "iftmp")
+                }
+                (BasicValueEnum::StructValue(_), BasicValueEnum::StructValue(_)) => {
+                    // TODO Should check if it's an actual struct or a zeroinitializer
+                    return Ok(self.gen_empty());
+                }
+                _ => return Err(CodegenError::DifferentReturnTypesBranch()),
+            };
 
-        self.builder.position_at_end(cont_bb);
+            phi.add_incoming(&[(&then_val, then_bb), (&else_val, else_bb)]);
 
-        let phi = match (then_val, else_val) {
-            (BasicValueEnum::IntValue(_), BasicValueEnum::IntValue(_)) => {
-                self.builder.build_phi(self.context.i64_type(), "iftmp")
-            }
-            (BasicValueEnum::FloatValue(_), BasicValueEnum::FloatValue(_)) => {
-                self.builder.build_phi(self.context.f64_type(), "iftmp")
-            }
-            _ => return Err(CodegenError::DifferentReturnTypesBranch()),
-        };
+            Ok(phi.as_basic_value())
+        } else {
+            let cont_bb = self.context.append_basic_block(parent, "ifcont");
+            self.builder
+                .build_conditional_branch(cond, then_bb, cont_bb);
+            // build then block
+            self.builder.position_at_end(then_bb);
+            self.compile_expr(&then)?;
+            self.builder.build_unconditional_branch(cont_bb);
 
-        phi.add_incoming(&[(&then_val, then_bb), (&else_val, else_bb)]);
-
-        Ok(phi.as_basic_value())
+            self.builder.position_at_end(cont_bb);
+            Ok(self.gen_empty())
+        }
     }
 
     fn compile_while(&mut self, cond: &Expr, body: &Block) -> CodegenResult<()> {
@@ -739,7 +750,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
 
         self.builder.position_at_end(while_block);
 
-        self.compile_block(&body.body, body.return_expr.clone().map(|x| *x))?;
+        self.compile_block(&body.body, None)?;
 
         self.builder
             .build_unconditional_branch(while_condition_block);

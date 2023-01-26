@@ -42,7 +42,7 @@ pub enum Expr {
     If {
         cond: Box<Expr>,
         then: Box<Expr>,
-        else_: Box<Expr>,
+        else_: Option<Box<Expr>>,
     },
     Block(Block),
     Struct(StructExpr),
@@ -260,24 +260,29 @@ impl Parser {
         let cond = self.parse_expr()?;
         let then = self.parse_block_expr()?;
 
-        self.consume(TokenKind::Else, ParseError::MissingElse())?;
-
-        let else_ = match self.current().kind {
-            TokenKind::LeftBrace => self.parse_block_expr()?,
-            TokenKind::If => self.parse_if()?,
-            _ => {
-                return Err(ParseError::UnexpectedTokenVerbose {
-                    expected: "{' or 'if".to_string(),
-                    found: self.current().lexeme.clone(),
-                })
-            }
+        let else_ = if let TokenKind::Else = self.current().kind {
+            self.advance()?;
+            let expr = match self.current().kind {
+                TokenKind::LeftBrace => self.parse_block_expr()?,
+                TokenKind::If => self.parse_if()?,
+                _ => {
+                    return Err(ParseError::UnexpectedTokenVerbose {
+                        expected: "{' or 'if".to_string(),
+                        found: self.current().lexeme.clone(),
+                    })
+                }
+            };
+            Some(Box::new(expr))
+        } else {
+            None
         };
 
         let conditional = Expr::If {
             cond: Box::new(cond),
             then: Box::new(then),
-            else_: Box::new(else_),
+            else_,
         };
+
         trace!("Parsed if expr {:#?}", conditional);
         Ok(conditional)
     }

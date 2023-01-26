@@ -30,14 +30,12 @@ fn main() {
         while x < xend {
             if mandelbrot(x, y) < 4.0 {
                 printf("x");
-                0
             } else {
                 printf(" ");
-                0
             }
             x = x + xstep; 
         }
         printf("\n");
-        y = y + ystep; 
-    };
+        y = y + ystep;
+    }
 }

@@ -29,7 +29,7 @@ fn main() {
 fn run_file(path: &String) {
     let source = fs::read_to_string(path).expect("Could not read file");
     if let Err(err) = run(source) {
-        eprintln!("{}", err);
+        eprintln!("{err}");
         process::exit(1);
     }
 }
@@ -54,7 +54,7 @@ fn run(source: String) -> Result<(), CompilerError> {
 
     if display_lexer_output {
         println!("----------------------------------");
-        println!("{:#?}", tokens);
+        println!("{tokens:#?}");
         println!("----------------------------------");
     }
 
@@ -63,7 +63,7 @@ fn run(source: String) -> Result<(), CompilerError> {
 
     if display_parser_output {
         println!("----------------------------------");
-        println!("{:#?}", ast);
+        println!("{ast:#?}");
         println!("----------------------------------");
     }
 
@@ -83,7 +83,7 @@ fn run(source: String) -> Result<(), CompilerError> {
             Stmt::Struct(struct_) => {
                 compiler.compile_struct(&struct_)?;
             }
-            _ => panic!("Unexpected statement, {:#?}", node),
+            _ => panic!("Unexpected statement, {node:#?}"),
         };
     }
 
@@ -108,7 +108,7 @@ fn run_jit(module: &Module) {
     let compiled_fn = match maybe_fn {
         Ok(f) => f,
         Err(err) => {
-            println!("!> Error during execution: {:?}", err);
+            println!("!> Error during execution: {err:?}");
             return;
         }
     };

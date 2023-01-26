@@ -211,8 +211,8 @@ impl Parser {
                     return Ok(block);
                 }
                 _ => match &stmt {
-                    Stmt::Expr(Expr::If { .. }) => body.push(stmt),
-                    Stmt::While { .. } => body.push(stmt),
+                    // if and while statments don't need semicolons at the end
+                    Stmt::While { .. } | Stmt::Expr(Expr::If { .. }) => body.push(stmt),
                     _ => return Err(ParseError::MissingSemicolon()),
                 },
             };

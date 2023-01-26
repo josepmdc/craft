@@ -3,7 +3,5 @@ fn max(a: i64, b: i64) i64 {
 }
 
 fn main() {
-    printf("%d",
-        max(20, 30)
-    );
+    printf("%d\n", max(20, 30));
 }
