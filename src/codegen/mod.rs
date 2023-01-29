@@ -9,6 +9,7 @@ use inkwell::{
     builder::Builder,
     context::Context,
     module::Module,
+    passes::PassManager,
     types::{AnyTypeEnum, BasicMetadataTypeEnum, BasicType, BasicTypeEnum, StructType},
     values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue, PointerValue},
     AddressSpace, FloatPredicate, IntPredicate,
@@ -32,6 +33,7 @@ pub struct Compiler<'a, 'ctx> {
     pub context: &'ctx Context,
     pub builder: &'a Builder<'ctx>,
     pub module: &'a Module<'ctx>,
+    pub fpm: &'a PassManager<FunctionValue<'ctx>>,
 
     variables: SymbolTable<'ctx>,
     structs: HashMap<String, Struct>,
@@ -45,11 +47,13 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         context: &'ctx Context,
         builder: &'a Builder<'ctx>,
         module: &'a Module<'ctx>,
+        fpm: &'a PassManager<FunctionValue<'ctx>>,
     ) -> Self {
         Self {
             context,
             builder,
             module,
+            fpm,
             variables: SymbolTable::new(),
             structs: HashMap::new(),
             fn_value_opt: None,
@@ -187,7 +191,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             Type::String => self
                 .context
                 .i8_type()
-                .ptr_type(AddressSpace::Generic)
+                .ptr_type(AddressSpace::default())
                 .fn_type(&param_types, false),
             Type::Array(arr) => self
                 .get_llvm_type(&arr.type_)?
@@ -772,7 +776,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             Type::String => Ok(self
                 .context
                 .i8_type()
-                .ptr_type(AddressSpace::Generic)
+                .ptr_type(AddressSpace::default())
                 .into()),
             Type::Array(arr) => Ok(self.get_llvm_type(&arr.type_)?.array_type(arr.size).into()),
             invalid_type => Err(CodegenError::InvalidType(invalid_type.clone())),
