@@ -6,7 +6,7 @@ mod parser;
 use std::{env, fs, process};
 
 use error::CompilerError;
-use inkwell::{context::Context, module::Module, OptimizationLevel};
+use inkwell::{context::Context, module::Module, passes::PassManager, OptimizationLevel};
 use lexer::lex::Scanner;
 
 use crate::{
@@ -70,8 +70,20 @@ fn run(source: String) -> Result<(), CompilerError> {
     let context = Context::create();
     let module = context.create_module("main");
     let builder = context.create_builder();
+    let fpm = PassManager::create(&module);
 
-    let mut compiler = Compiler::new(&context, &builder, &module);
+    fpm.add_instruction_combining_pass();
+    fpm.add_reassociate_pass();
+    fpm.add_gvn_pass();
+    fpm.add_cfg_simplification_pass();
+    fpm.add_basic_alias_analysis_pass();
+    fpm.add_promote_memory_to_register_pass();
+    fpm.add_instruction_combining_pass();
+    fpm.add_reassociate_pass();
+
+    fpm.initialize();
+
+    let mut compiler = Compiler::new(&context, &builder, &module, &fpm);
 
     compiler.compile_builtin();
 
