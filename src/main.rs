@@ -23,7 +23,21 @@ fn main() {
     env_logger::init();
 
     let args: Vec<String> = env::args().collect();
-    run_file(&args[1]);
+
+    if args.len() < 2 || args[1] == "--help" {
+        display_help();
+    } else {
+        run_file(&args[1]);
+    }
+}
+
+fn display_help() {
+    println!("The Craft Programming Language\n");
+    println!("craft <file> [options]");
+    println!("Options:");
+    println!("  -l  display lexer output");
+    println!("  -p  display AST");
+    println!("  -c  display generated code");
 }
 
 fn run_file(path: &String) {
@@ -112,7 +126,7 @@ fn run(source: String) -> Result<(), CompilerError> {
 
 fn run_jit(module: &Module) {
     let ee = module
-        .create_jit_execution_engine(OptimizationLevel::None)
+        .create_jit_execution_engine(OptimizationLevel::Default)
         .unwrap();
 
     let maybe_fn = unsafe { ee.get_function::<unsafe extern "C" fn()>(PROGRAM_STARTING_POINT) };
