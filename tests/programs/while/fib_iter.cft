@@ -1,9 +1,9 @@
 fn fib(n: i64) i64 {
-    let curr = 1;
-    let prev = 0;
-    let prev_prev = 0;
+    let mut curr = 1;
+    let mut prev = 0;
+    let mut prev_prev = 0;
 
-    let i = 1;
+    let mut i = 1;
     while i < n {
         prev_prev = prev;
         prev = curr;

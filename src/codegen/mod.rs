@@ -25,7 +25,10 @@ use crate::{
     },
 };
 
-use self::{error::CodegenError, st::SymbolTable};
+use self::{
+    error::CodegenError,
+    st::{Entry, SymbolTable},
+};
 
 type CodegenResult<T> = Result<T, CodegenError>;
 
@@ -120,8 +123,13 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
             let alloca =
                 self.create_entry_block_alloca(proto.params[i].identifier.as_str(), arg.get_type());
             self.builder.build_store(alloca, arg);
-            self.variables
-                .insert(proto.params[i].identifier.clone(), alloca);
+            self.variables.insert(
+                proto.params[i].identifier.clone(),
+                Entry {
+                    value: alloca,
+                    mutable: false,
+                },
+            );
         }
 
         self.compile_block(&function.body, function.return_expr.clone())?;
@@ -218,8 +226,12 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
 
     fn compile_stmt(&mut self, stmt: &Stmt) -> CodegenResult<()> {
         match stmt {
-            Stmt::Var { token, initializer } => {
-                self.compile_var_declaration(token.lexeme.clone(), initializer)?;
+            Stmt::Var {
+                token,
+                initializer,
+                mutable,
+            } => {
+                self.compile_var_declaration(token.lexeme.clone(), initializer, *mutable)?;
             }
             Stmt::Expr(expr) => {
                 self.compile_expr(expr)?;
@@ -238,11 +250,23 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         Ok(())
     }
 
-    fn compile_var_declaration(&mut self, name: String, initializer: &Expr) -> CodegenResult<()> {
+    fn compile_var_declaration(
+        &mut self,
+        name: String,
+        initializer: &Expr,
+        mutable: bool,
+    ) -> CodegenResult<()> {
         let compiled_expr = self.compile_expr(initializer)?;
         let alloca = self.create_entry_block_alloca(name.as_str(), compiled_expr.get_type());
         self.builder.build_store(alloca, compiled_expr);
-        self.variables.insert(name, alloca);
+
+        let entry = Entry {
+            value: alloca,
+            mutable,
+        };
+
+        self.variables.insert(name, entry);
+
         Ok(())
     }
 
@@ -251,11 +275,14 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         name: &str,
         rhs: &Expr,
     ) -> CodegenResult<BasicValueEnum<'ctx>> {
-        let val = self.compile_expr(rhs)?;
-
         let var = self.variables.get(name)?;
 
-        self.builder.build_store(var, val);
+        if !var.mutable {
+            return Err(CodegenError::ImmutableVariable());
+        }
+
+        let val = self.compile_expr(rhs)?;
+        self.builder.build_store(var.value, val);
         Ok(val)
     }
 
@@ -307,9 +334,9 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
         &self,
         field_access: &FieldAccess,
     ) -> CodegenResult<BasicValueEnum<'ctx>> {
-        let variable_ptr = self.variables.get(&field_access.variable_id)?;
+        let variable = self.variables.get(&field_access.variable_id)?;
 
-        let field_ptr = self.get_field_ptr(field_access, &variable_ptr)?;
+        let field_ptr = self.get_field_ptr(field_access, &variable.value)?;
         Ok(self.builder.build_load(field_ptr, "tmp.deref"))
     }
 
@@ -666,7 +693,9 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
     }
 
     fn compile_variable(&self, name: &str) -> CodegenResult<BasicValueEnum<'ctx>> {
-        Ok(self.builder.build_load(self.variables.get(name)?, name))
+        Ok(self
+            .builder
+            .build_load(self.variables.get(name)?.value, name))
     }
 
     fn compile_conditional(
@@ -863,9 +892,10 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
 
         let index = index_expr.into_int_value();
 
-        let variable_ptr = self.variables.get(&access.variable_id)?;
+        let variable = self.variables.get(&access.variable_id)?;
 
-        let arr_len = variable_ptr
+        let arr_len = variable
+            .value
             .get_type()
             .get_element_type()
             .into_pointer_type()
@@ -884,7 +914,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
 
         let variable_ptr = self
             .builder
-            .build_load(variable_ptr, "deref")
+            .build_load(variable.value, "deref")
             .into_pointer_value();
 
         let item_ptr = unsafe {

@@ -4,7 +4,13 @@ use inkwell::values::PointerValue;
 
 use super::error::CodegenError;
 
-type Table<'ctx> = HashMap<String, PointerValue<'ctx>>;
+type Table<'ctx> = HashMap<String, Entry<'ctx>>;
+
+#[derive(Clone, Debug)]
+pub struct Entry<'ctx> {
+    pub value: PointerValue<'ctx>,
+    pub mutable: bool,
+}
 
 pub struct SymbolTable<'ctx> {
     table_stack: Vec<Table<'ctx>>,
@@ -31,11 +37,11 @@ impl<'ctx> SymbolTable<'ctx> {
             .expect("There should always be at least one table")
     }
 
-    pub fn insert(&mut self, name: String, value: PointerValue<'ctx>) {
-        self.top_table().insert(name, value);
+    pub fn insert(&mut self, name: String, entry: Entry<'ctx>) {
+        self.top_table().insert(name, entry);
     }
 
-    pub fn get(&self, var: &str) -> Result<PointerValue<'ctx>, CodegenError> {
+    pub fn get(&self, var: &str) -> Result<Entry<'ctx>, CodegenError> {
         let table = self
             .table_stack
             .iter()
@@ -43,6 +49,6 @@ impl<'ctx> SymbolTable<'ctx> {
             .find(|table| table.contains_key(var))
             .ok_or_else(|| CodegenError::UndeclaredVariableOrOutOfScope(var.to_string()))?;
 
-        Ok(*table.get(var).unwrap())
+        Ok(table.get(var).unwrap().clone())
     }
 }

@@ -121,6 +121,7 @@ impl Scanner {
             "printf" => Some(TokenKind::Printf),
             "struct" => Some(TokenKind::Struct),
             "ret" => Some(TokenKind::Return),
+            "mut" => Some(TokenKind::Mut),
             _ => None,
         }
     }

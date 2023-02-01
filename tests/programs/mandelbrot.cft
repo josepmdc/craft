@@ -1,8 +1,8 @@
 fn mandelbrot(a: f64, b: f64) f64 {
-    let za = 0.0;
-    let zb = 0.0;
+    let mut za = 0.0;
+    let mut zb = 0.0;
 
-    let i = 0;
+    let mut i = 0;
 
     while i < 50 {
         za = (za*za - zb*zb) + a;
@@ -22,8 +22,8 @@ fn main() {
     let xstep = 0.0315;
     let ystep = -0.05;
 
-    let x = xstart;
-    let y = ystart;
+    let mut x = xstart;
+    let mut y = ystart;
 
     while y > yend {
         x = xstart;
@@ -37,5 +37,5 @@ fn main() {
         }
         printf("\n");
         y = y + ystep;
-    }
+    };
 }

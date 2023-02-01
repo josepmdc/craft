@@ -11,10 +11,20 @@ use super::{
 pub enum Stmt {
     Function(Function),
     Struct(Struct),
-    Var { token: Token, initializer: Expr },
+    Var {
+        token: Token,
+        initializer: Expr,
+        mutable: bool,
+    },
     Expr(Expr),
-    While { cond: Expr, body: Block },
-    Printf { fmt_string: String, args: Vec<Expr> },
+    While {
+        cond: Expr,
+        body: Block,
+    },
+    Printf {
+        fmt_string: String,
+        args: Vec<Expr>,
+    },
     Return(Expr),
 }
 
@@ -69,6 +79,14 @@ impl Parser {
 
     fn parse_var_declaration(&mut self) -> ParseResult<Stmt> {
         self.advance()?;
+
+        let mutable = if let TokenKind::Mut = self.current().kind {
+            self.advance()?;
+            true
+        } else {
+            false
+        };
+
         let stmt = match &self.current().kind {
             TokenKind::Identifier(_) => {
                 let identifier = self.advance()?.clone();
@@ -79,6 +97,7 @@ impl Parser {
                 Stmt::Var {
                     token: identifier,
                     initializer: self.parse_expr()?,
+                    mutable,
                 }
             }
             _ => todo!("Return error"),

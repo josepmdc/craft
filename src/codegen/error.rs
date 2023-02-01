@@ -36,4 +36,6 @@ pub enum CodegenError {
     IndexOutOfBounds(u32, u32),
     #[error("Index must be an integer")]
     IndexNotInteger(),
+    #[error("Variable is immutable. Cannot assign value.")]
+    ImmutableVariable(),
 }

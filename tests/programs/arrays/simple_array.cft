@@ -8,7 +8,7 @@ fn asdf(xd: [i64; 3]) [i64; 3] {
 
 fn main() {
     let a = [1, 2, 3] i64;
-    let i = 0;
+    let mut i = 0;
 
     printf("[");
     while i < 3 {
